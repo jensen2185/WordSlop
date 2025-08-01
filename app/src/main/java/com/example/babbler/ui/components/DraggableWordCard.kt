@@ -32,7 +32,8 @@ fun DraggableWordCard(
     onDragEnd: () -> Unit = {},
     onDragEndWithPosition: (Offset) -> Unit = { _ -> },
     onDragEndWithGlobalPosition: (Offset, Offset) -> Unit = { _, _ -> },
-    onDrag: (Offset) -> Unit = {}
+    onDrag: (Offset) -> Unit = {},
+    onDragWithGlobalPosition: (Offset, Offset) -> Unit = { _, _ -> }
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var initialGlobalPosition by remember { mutableStateOf(Offset.Zero) }
@@ -63,10 +64,14 @@ fun DraggableWordCard(
                         onDragEnd()
                         offset = Offset.Zero
                     }
-                ) { change, dragAmount ->
-                    offset += dragAmount
-                    onDrag(offset)
-                }
+                                       ) { change, dragAmount ->
+                           offset += dragAmount
+                           onDrag(offset)
+                           
+                           // Also report current global position during drag
+                           val currentGlobalPosition = initialGlobalPosition + offset
+                           onDragWithGlobalPosition(offset, currentGlobalPosition)
+                       }
             },
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(

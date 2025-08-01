@@ -35,6 +35,9 @@ fun WordGameScreen(
     var draggedWordId by remember { mutableStateOf<Int?>(null) }
     var topBarGlobalX by remember { mutableStateOf(0f) }
     var topBarWidth by remember { mutableStateOf(0f) }
+    var wordBankDragPosition by remember { mutableStateOf(0f) }
+    var isDraggingFromWordBank by remember { mutableStateOf(false) }
+    var actualWordPositions by remember { mutableStateOf(mapOf<Int, Float>()) }
     
     val configuration = LocalConfiguration.current
     
@@ -58,6 +61,8 @@ fun WordGameScreen(
         ArrangementBar(
             arrangedWords = arrangedWords,
             draggedWordId = draggedWordId,
+            isDraggingFromWordBank = isDraggingFromWordBank,
+            wordBankDragPosition = wordBankDragPosition,
             onWordRemove = { word ->
                 // Simply remove the word and update game words
                 arrangedWords = arrangedWords.filter { it.id != word.id }
@@ -93,6 +98,9 @@ fun WordGameScreen(
             onDragEnd = {
                 draggedWordId = null
             },
+            onActualPositionsUpdate = { positions ->
+                actualWordPositions = positions
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { coordinates ->
@@ -116,8 +124,14 @@ fun WordGameScreen(
                     isDragging = draggedWordId == word.id,
                     onDragStart = {
                         draggedWordId = word.id
+                        isDraggingFromWordBank = true
                     },
                     onDragEndWithGlobalPosition = { dragOffset, finalGlobalPosition ->
+                        // Update drag position for visual debugging
+                        val relativeDropX = finalGlobalPosition.x - topBarGlobalX
+                        wordBankDragPosition = relativeDropX
+                        
+                        // Then handle the actual insertion logic
                         if (draggedWordId == word.id) {
                             // Add to arrangement if not already there and dragged upward
                             if (!arrangedWords.any { it.id == word.id } && dragOffset.y < -50) {
@@ -126,19 +140,32 @@ fun WordGameScreen(
                                 val dropX = finalGlobalPosition.x
                                 val relativeDropX = dropX - topBarGlobalX
                                 
-                                // SIMPLE APPROACH: Just divide position by reasonable spacing
+                                // Use actual measured word positions for accurate insertion
                                 var insertionIndex = 0
                                 
-                                if (arrangedWords.isEmpty()) {
-                                    insertionIndex = 0
-                                } else {
-                                    // Dead simple: every ~70px is roughly one word position
-                                    val approximateWordSpacing = 70f
-                                    insertionIndex = (relativeDropX / approximateWordSpacing).roundToInt()
-                                    insertionIndex = insertionIndex.coerceIn(0, arrangedWords.size)
-                                    
-                                    println("DEBUG SIMPLE: relativeDropX=$relativeDropX, spacing=$approximateWordSpacing, calculatedIndex=$insertionIndex")
+                                                            if (arrangedWords.isEmpty()) {
+                                insertionIndex = 0
+                            } else {
+                                // Use ACTUAL word positions (same logic as top bar reordering)
+                                var wordsToMyLeft = 0
+                                
+                                // Count how many words should be to my left in the final arrangement
+                                for (i in arrangedWords.indices) {
+                                    // Use ACTUAL position, fallback to estimate if not available
+                                    val wordPosition = actualWordPositions[i] ?: (i * 70f)
+                                    if (relativeDropX > wordPosition) {
+                                        // This word should be to my left in final arrangement
+                                        wordsToMyLeft++
+                                    }
                                 }
+                                
+                                // My new index = number of words to my left
+                                insertionIndex = wordsToMyLeft
+                                insertionIndex = insertionIndex.coerceIn(0, arrangedWords.size)
+                                
+                                println("DEBUG WORD BANK INSERTION: relativeDropX=$relativeDropX, wordsToMyLeft=$wordsToMyLeft, insertionIndex=$insertionIndex")
+                                println("ACTUAL POSITIONS: $actualWordPositions")
+                            }
                                 
                                 // Insert word at calculated position
                                 val mutableList = arrangedWords.toMutableList()
@@ -154,6 +181,20 @@ fun WordGameScreen(
                     },
                     onDragEnd = {
                         draggedWordId = null
+                        isDraggingFromWordBank = false
+                        wordBankDragPosition = 0f
+                    },
+                    onDrag = { offset ->
+                        // Keep existing drag logic if needed
+                    },
+                    onDragWithGlobalPosition = { offset, currentGlobalPosition ->
+                        // Update position during drag for visual debugging
+                        if (draggedWordId == word.id) {
+                            // Calculate current drag position relative to top bar
+                            val relativeX = currentGlobalPosition.x - topBarGlobalX
+                            wordBankDragPosition = relativeX
+                            println("DEBUG WORD BANK DRAG: globalX=${currentGlobalPosition.x}, topBarX=$topBarGlobalX, relativeX=$relativeX")
+                        }
                     },
                     modifier = Modifier.wrapContentWidth()
                 )
