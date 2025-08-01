@@ -1,10 +1,12 @@
 package com.example.babbler.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +17,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.babbler.model.Word
@@ -23,6 +26,17 @@ import com.example.babbler.ui.components.WordCard
 import com.example.babbler.ui.components.DraggableWordCard
 import com.example.babbler.ui.components.ArrangementBar
 import kotlin.math.roundToInt
+
+data class Player(
+    val name: String,
+    val isReady: Boolean = false,
+    val selectedWords: List<String> = emptyList(),
+    val points: Int = 0
+)
+
+enum class GamePhase {
+    PLAYING, VOTING, RESULTS
+}
 
 @Composable
 fun WordGameScreen(
@@ -39,6 +53,20 @@ fun WordGameScreen(
     var isDraggingFromWordBank by remember { mutableStateOf(false) }
     var actualWordPositions by remember { mutableStateOf(mapOf<Int, Float>()) }
     
+    // Timer and player state
+    var timeLeft by remember { mutableStateOf(60) }
+    var gamePhase by remember { mutableStateOf(GamePhase.PLAYING) }
+    var votingTimeLeft by remember { mutableStateOf(20) }
+    var userVote by remember { mutableStateOf<Int?>(null) }
+    var players by remember { 
+        mutableStateOf(listOf(
+            Player("You", false, emptyList()),
+            Player("CPU1", false, emptyList()),
+            Player("CPU2", false, emptyList()),
+            Player("CPU3", false, emptyList())
+        )) 
+    }
+    
     val configuration = LocalConfiguration.current
     
     // Determine grid columns based on screen orientation  
@@ -50,13 +78,114 @@ fun WordGameScreen(
         4
     }
     
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // Timer countdown effect for playing phase
+    LaunchedEffect(gamePhase) {
+        if (gamePhase == GamePhase.PLAYING) {
+            while (timeLeft > 0 && gamePhase == GamePhase.PLAYING) {
+                kotlinx.coroutines.delay(1000L)
+                timeLeft--
+                
+                // Check if all players are ready
+                if (players.all { it.isReady }) {
+                    gamePhase = GamePhase.VOTING
+                    break
+                }
+            }
+            
+            if (timeLeft <= 0) {
+                gamePhase = GamePhase.VOTING
+            }
+        }
+    }
+    
+    // Voting timer countdown effect
+    LaunchedEffect(gamePhase) {
+        if (gamePhase == GamePhase.VOTING) {
+            while (votingTimeLeft > 0 && gamePhase == GamePhase.VOTING && userVote == null) {
+                kotlinx.coroutines.delay(1000L)
+                votingTimeLeft--
+            }
+            
+            // If user voted or time ran out, move to results
+            if (userVote != null || votingTimeLeft <= 0) {
+                gamePhase = GamePhase.RESULTS
+            }
+        }
+    }
+    
+    // CPU simulation effect
+    LaunchedEffect(gamePhase) {
+        if (gamePhase == GamePhase.PLAYING) {
+            // Simulate CPU players selecting words and hitting ready immediately
+            kotlinx.coroutines.delay(3000L) // Wait 3 seconds, then all CPUs get ready
+            
+            players = players.map { player ->
+                if (player.name.startsWith("CPU")) {
+                    player.copy(
+                        isReady = true,
+                        selectedWords = gameWords.shuffled().take(3).map { word -> word.text }
+                    )
+                } else player
+            }
+        }
+    }
+    
+    when (gamePhase) {
+        GamePhase.PLAYING -> {
+            // Original word game UI
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+        
+        // Player status and timer row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Player status
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                players.forEach { player ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (player.isReady) Color.Green.copy(alpha = 0.3f) else Color.Gray.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = player.name,
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+            
+            // Timer
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (timeLeft <= 10) Color.Red.copy(alpha = 0.3f) else Color.Blue.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "${timeLeft}s",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        }
+        
         // Top arrangement bar
         ArrangementBar(
             arrangedWords = arrangedWords,
@@ -204,29 +333,253 @@ fun WordGameScreen(
         // Game Controls
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Button(
-                onClick = {
-                    // Reset game
-                    gameWords = wordRepository.getRandomWords()
-                    arrangedWords = emptyList()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
-                )
+            // Left side buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("New Game")
+                Button(
+                    onClick = {
+                        // Reset game
+                        gameWords = wordRepository.getRandomWords()
+                        arrangedWords = emptyList()
+                        timeLeft = 60
+                        votingTimeLeft = 20
+                        gamePhase = GamePhase.PLAYING
+                        userVote = null
+                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary
+                    )
+                ) {
+                    Text("New Game")
+                }
+
+                Button(
+                    onClick = {
+                        // Clear arrangement
+                        arrangedWords = emptyList()
+                        gameWords = gameWords.map { it.copy(isPlaced = false) }
+                    }
+                ) {
+                    Text("Clear")
+                }
             }
             
+            // Ready button
             Button(
                 onClick = {
-                    // Clear arrangement
-                    arrangedWords = emptyList()
-                    gameWords = gameWords.map { it.copy(isPlaced = false) }
-                }
+                    // Mark player as ready
+                    val playerSentence = arrangedWords.map { it.text }
+                    players = players.map { 
+                        if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                        else it 
+                    }
+                },
+                enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.Green
+                )
             ) {
-                Text("Clear")
+                Text(
+                    text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+                }
+            }
+        }
+        
+        GamePhase.VOTING -> {
+            // Voting screen
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Voting header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Vote for the Best Sentence",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (votingTimeLeft <= 5) Color.Red.copy(alpha = 0.3f) else Color(0xFFFF9800).copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "${votingTimeLeft}s",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+                
+                // Anonymous sentences - compact layout
+                val sentencesWithIndex = players.filter { it.selectedWords.isNotEmpty() }.mapIndexed { index, player -> 
+                    index to player 
+                }
+                
+                sentencesWithIndex.forEach { (index, player) ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = userVote == null) {
+                                userVote = index
+                                // Award point to voted player and CPUs vote for user
+                                players = players.map { p ->
+                                    when {
+                                        p.name == player.name -> p.copy(points = p.points + 1) // User's vote
+                                        p.name == "You" -> p.copy(points = p.points + 3) // CPUs vote for user
+                                        else -> p
+                                    }
+                                }
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (userVote == index) Color.Green.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = player.selectedWords.joinToString(" "),
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            if (userVote == index) {
+                                Text(
+                                    text = "✓",
+                                    color = Color.Green,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                if (userVote != null) {
+                    Text(
+                        text = "CPUs voted for your sentence! Moving to results...",
+                        color = Color.Green,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+        
+        GamePhase.RESULTS -> {
+            // Results screen
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Round Results",
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Show all sentences with authors and points
+                players.filter { it.selectedWords.isNotEmpty() }.forEach { player ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.Gray.copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = player.name,
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                
+                                if (player.points > 0) {
+                                    Text(
+                                        text = "+${player.points}",
+                                        color = Color.Green,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Text(
+                                text = player.selectedWords.joinToString(" "),
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Button(
+                    onClick = {
+                        // Reset for next round
+                        gameWords = wordRepository.getRandomWords()
+                        arrangedWords = emptyList()
+                        timeLeft = 60
+                        votingTimeLeft = 20
+                        gamePhase = GamePhase.PLAYING
+                        userVote = null
+                        players = players.map { it.copy(isReady = false, selectedWords = emptyList()) }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Next Round")
+                }
             }
         }
     }
