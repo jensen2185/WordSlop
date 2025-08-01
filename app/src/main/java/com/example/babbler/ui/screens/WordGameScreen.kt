@@ -151,9 +151,9 @@ fun WordGameScreen(
                                 
                                 // Count how many words should be to my left in the final arrangement
                                 for (i in arrangedWords.indices) {
-                                    // Use ACTUAL position, fallback to estimate if not available
-                                    val wordPosition = actualWordPositions[i] ?: (i * 70f)
-                                    if (relativeDropX > wordPosition) {
+                                    // Use ACTUAL position - if not available, skip (shouldn't happen)
+                                    val wordPosition = actualWordPositions[i]
+                                    if (wordPosition != null && relativeDropX > wordPosition) {
                                         // This word should be to my left in final arrangement
                                         wordsToMyLeft++
                                     }

@@ -72,7 +72,6 @@ fun ArrangementBar(
             )
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 itemsIndexed(
@@ -143,12 +142,16 @@ fun DraggableArrangedWord(
     // VISUAL DEBUG: Calculate color based on position relative to dragged word
     val debugColor = if (isDraggingAny && draggedWordId != word.id) {
         // Use my ACTUAL position from the positions map
-        val myActualPosition = actualWordPositions[index] ?: (index * 70f) // Fallback to estimate if not found
+        val myActualPosition = actualWordPositions[index]
         
-        if (draggedWordPosition > myActualPosition) {
-            Color.Green.copy(alpha = 0.7f) // Dragged word is to my right, I'm on the left (green)
+        if (myActualPosition != null) {
+            if (draggedWordPosition > myActualPosition) {
+                Color.Green.copy(alpha = 0.7f) // Dragged word is to my right, I'm on the left (green)
+            } else {
+                Color.Red.copy(alpha = 0.7f) // Dragged word is to my left, I'm on the right (red)
+            }
         } else {
-            Color.Red.copy(alpha = 0.7f) // Dragged word is to my left, I'm on the right (red)
+            Color.White // No position data yet, normal color
         }
     } else {
         Color.White // Normal color
@@ -204,17 +207,17 @@ fun DraggableArrangedWord(
                             // CLEANER: Count GREEN words that should be to the left (using ACTUAL positions)
                             var wordsToMyLeft = 0
                             
-                            // Count how many words should be to my left in the final arrangement
-                            for (i in arrangedWords.indices) {
-                                if (i != index) { // Skip the word being dragged
-                                    // Use ACTUAL position, fallback to estimate if not available
-                                    val wordPosition = actualWordPositions[i] ?: (i * 70f)
-                                    if (relativeDropX > wordPosition) {
-                                        // This word should be to my left in final arrangement
-                                        wordsToMyLeft++
-                                    }
-                                }
-                            }
+                                                               // Count how many words should be to my left in the final arrangement
+                                   for (i in arrangedWords.indices) {
+                                       if (i != index) { // Skip the word being dragged
+                                           // Use ACTUAL position - if not available, skip (shouldn't happen)
+                                           val wordPosition = actualWordPositions[i]
+                                           if (wordPosition != null && relativeDropX > wordPosition) {
+                                               // This word should be to my left in final arrangement
+                                               wordsToMyLeft++
+                                           }
+                                       }
+                                   }
                             
                             // My new index = number of words to my left
                             var newIndex = wordsToMyLeft
