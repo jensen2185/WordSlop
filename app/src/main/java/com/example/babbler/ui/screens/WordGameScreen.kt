@@ -22,6 +22,7 @@ import com.example.babbler.repository.WordRepository
 import com.example.babbler.ui.components.WordCard
 import com.example.babbler.ui.components.DraggableWordCard
 import com.example.babbler.ui.components.ArrangementBar
+import kotlin.math.roundToInt
 
 @Composable
 fun WordGameScreen(
@@ -125,27 +126,18 @@ fun WordGameScreen(
                                 val dropX = finalGlobalPosition.x
                                 val relativeDropX = dropX - topBarGlobalX
                                 
-                                // Find insertion index by comparing X positions
+                                // SIMPLE APPROACH: Just divide position by reasonable spacing
                                 var insertionIndex = 0
-                                val cardWidth = 84f // Approximate card width + spacing
                                 
-                                // If no words exist, place at position 0
                                 if (arrangedWords.isEmpty()) {
                                     insertionIndex = 0
                                 } else {
-                                    // Compare drop position against existing word positions
-                                    for (i in arrangedWords.indices) {
-                                        val wordX = i * cardWidth // Calculate each word's X position
-                                        if (relativeDropX > wordX + (cardWidth / 2)) {
-                                            // Drop position is past the midpoint of this word
-                                            insertionIndex = i + 1
-                                        } else {
-                                            // Drop position is before this word's midpoint
-                                            break
-                                        }
-                                    }
-                                    // Ensure index doesn't exceed list size
+                                    // Dead simple: every ~70px is roughly one word position
+                                    val approximateWordSpacing = 70f
+                                    insertionIndex = (relativeDropX / approximateWordSpacing).roundToInt()
                                     insertionIndex = insertionIndex.coerceIn(0, arrangedWords.size)
+                                    
+                                    println("DEBUG SIMPLE: relativeDropX=$relativeDropX, spacing=$approximateWordSpacing, calculatedIndex=$insertionIndex")
                                 }
                                 
                                 // Insert word at calculated position

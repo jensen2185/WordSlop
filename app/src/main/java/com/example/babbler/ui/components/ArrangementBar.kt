@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -22,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.babbler.model.Word
 import kotlin.math.roundToInt
+import kotlin.math.abs
 
 @Composable
 fun ArrangementBar(
@@ -34,6 +37,7 @@ fun ArrangementBar(
     onDragStart: (Int) -> Unit = {},
     onDragEnd: () -> Unit = {}
 ) {
+    var barGlobalX by remember { mutableStateOf(0f) }
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -48,6 +52,9 @@ fun ArrangementBar(
                 .fillMaxWidth()
                 .height(44.dp)
                 .align(Alignment.TopCenter)
+                .onGloballyPositioned { coordinates ->
+                    barGlobalX = coordinates.positionInRoot().x
+                }
         ) {
             // Line below words
             Box(
@@ -67,18 +74,19 @@ fun ArrangementBar(
                     key = { index, word -> "${word.id}-$index" }
                 ) { index, word ->
                     // Each word in the list should be visible
-                    DraggableArrangedWord(
-                        word = word,
-                        index = index,
-                        arrangedWords = arrangedWords,
-                        onWordRemove = onWordRemove,
-                        onWordsReordered = onWordsReordered,
-                        onDragStart = onDragStart,
-                        onDragEnd = onDragEnd,
-                        modifier = Modifier
-                            .height(44.dp)
-                            .zIndex(1f)  // Ensure words are always visible
-                    )
+                                               DraggableArrangedWord(
+                               word = word,
+                               index = index,
+                               arrangedWords = arrangedWords,
+                               barGlobalX = barGlobalX,
+                               onWordRemove = onWordRemove,
+                               onWordsReordered = onWordsReordered,
+                               onDragStart = onDragStart,
+                               onDragEnd = onDragEnd,
+                               modifier = Modifier
+                                   .height(44.dp)
+                                   .zIndex(1f)  // Ensure words are always visible
+                           )
                 }
             }
         }
@@ -90,6 +98,7 @@ fun DraggableArrangedWord(
     word: Word,
     index: Int,
     arrangedWords: List<Word>,
+    barGlobalX: Float,
     onWordRemove: (Word) -> Unit,
     onWordsReordered: (List<Word>) -> Unit,
     onDragStart: (Int) -> Unit,
@@ -98,6 +107,7 @@ fun DraggableArrangedWord(
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
     var isDragging by remember { mutableStateOf(false) }
+    var initialGlobalPosition by remember { mutableStateOf(Offset.Zero) }
     
     Card(
         shape = RoundedCornerShape(4.dp),
@@ -109,6 +119,11 @@ fun DraggableArrangedWord(
         ),
         border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f)),
         modifier = modifier
+            .onGloballyPositioned { coordinates ->
+                if (!isDragging) {
+                    initialGlobalPosition = coordinates.positionInRoot()
+                }
+            }
             .offset { 
                 IntOffset(
                     offset.x.roundToInt(),
@@ -131,18 +146,30 @@ fun DraggableArrangedWord(
                             onWordRemove(word)
                             return@detectDragGestures
                         } else {
-                            // Simple relative movement calculation
-                            val moveDistance = offset.x
-                            val moveRight = moveDistance > 40f && index < arrangedWords.size - 1
-                            val moveLeft = moveDistance < -40f && index > 0
+                            // Physics-based reordering: use actual drop position
+                            val finalGlobalPosition = initialGlobalPosition + offset
+                            val dropX = finalGlobalPosition.x
+                            val relativeDropX = dropX - barGlobalX
                             
-                            if (moveRight || moveLeft) {
-                                val targetIndex = if (moveRight) index + 1 else index - 1
-                                
-                                // Simple reordering without animation
+                            println("DEBUG TOP BAR: dropX=$dropX, barGlobalX=$barGlobalX, relativeDropX=$relativeDropX, currentIndex=$index")
+                            
+                            // DEAD SIMPLE: Just divide position by spacing
+                            val approximateWordSpacing = 70f
+                            var newIndex = (relativeDropX / approximateWordSpacing).roundToInt()
+                            newIndex = newIndex.coerceIn(0, arrangedWords.size - 1)
+                            
+                            // Adjust for removing current word first
+                            if (newIndex > index) {
+                                newIndex -= 1
+                            }
+                            
+                            println("DEBUG TOP BAR SIMPLE: relativeDropX=$relativeDropX, targetIndex=$newIndex, currentIndex=$index")
+                            
+                            // Only reorder if position actually changed and movement is significant
+                            if (newIndex != index && kotlin.math.abs(offset.x) > 30f) {
                                 val mutableList = arrangedWords.toMutableList()
                                 val draggedWord = mutableList.removeAt(index)
-                                mutableList.add(targetIndex, draggedWord)
+                                mutableList.add(newIndex, draggedWord)
                                 onWordsReordered(mutableList)
                             }
                         }
