@@ -139,28 +139,12 @@ fun DraggableArrangedWord(
     var initialGlobalPosition by remember { mutableStateOf(Offset.Zero) }
     var myPosition by remember { mutableStateOf(0f) }
     
-    // VISUAL DEBUG: Calculate color based on position relative to dragged word
-    val debugColor = if (isDraggingAny && draggedWordId != word.id) {
-        // Use my ACTUAL position from the positions map
-        val myActualPosition = actualWordPositions[index]
-        
-        if (myActualPosition != null) {
-            if (draggedWordPosition > myActualPosition) {
-                Color.Green.copy(alpha = 0.7f) // Dragged word is to my right, I'm on the left (green)
-            } else {
-                Color.Red.copy(alpha = 0.7f) // Dragged word is to my left, I'm on the right (red)
-            }
-        } else {
-            Color.White // No position data yet, normal color
-        }
-    } else {
-        Color.White // Normal color
-    }
+
     
     Card(
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = debugColor
+            containerColor = Color(0xFF4F46E5)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isDragging) 8.dp else 2.dp
@@ -253,7 +237,7 @@ fun DraggableArrangedWord(
                    contentAlignment = Alignment.Center,
                    modifier = Modifier
                        .padding(
-                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
+                           start = if (word.text == "'s" || word.text == "er") 1.dp else 8.dp, // Minimal left padding for suffixes
                            end = 8.dp,
                            top = 6.dp,
                            bottom = 6.dp

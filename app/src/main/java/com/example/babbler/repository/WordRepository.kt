@@ -102,7 +102,7 @@ class WordRepository {
     }
     
     /**
-     * Gets the 7 special always-present words
+     * Gets the 8 special always-present words
      */
     fun getSpecialWords(): List<Word> {
         return listOf(
@@ -112,7 +112,8 @@ class WordRepository {
             Word(1003, "as", WordType.CONJUNCTION),
             Word(1004, "to", WordType.PREPOSITION),
             Word(1005, "in", WordType.PREPOSITION),
-            Word(1006, "the", WordType.ARTICLE)
+            Word(1006, "the", WordType.ARTICLE),
+            Word(1007, "er", WordType.NOUN) // For comparatives/agent nouns (special styling)
         )
     }
 }
