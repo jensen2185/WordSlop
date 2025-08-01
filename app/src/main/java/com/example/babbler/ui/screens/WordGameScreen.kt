@@ -37,7 +37,7 @@ data class Player(
 )
 
 enum class GamePhase {
-    PLAYING, VOTING, RESULTS
+    PLAYING, VOTING, RESULTS, WINNER
 }
 
 @Composable
@@ -60,13 +60,18 @@ fun WordGameScreen(
     var timeLeft by remember { mutableStateOf(60) }
     var gamePhase by remember { mutableStateOf(GamePhase.PLAYING) }
     var votingTimeLeft by remember { mutableStateOf(20) }
+    var resultsTimeLeft by remember { mutableStateOf(5) }
     var userVote by remember { mutableStateOf<Int?>(null) }
+    var currentRound by remember { mutableStateOf(1) }
+    var totalRounds by remember { mutableStateOf(2) }
     var players by remember { 
         mutableStateOf(listOf(
             Player("You", false, emptyList()),
             Player("CPU1", false, emptyList()),
             Player("CPU2", false, emptyList()),
-            Player("CPU3", false, emptyList())
+            Player("CPU3", false, emptyList()),
+            Player("CPU4", false, emptyList()),
+            Player("CPU5", false, emptyList())
         )) 
     }
     
@@ -156,6 +161,36 @@ fun WordGameScreen(
         }
     }
     
+    // Results timer countdown effect
+    LaunchedEffect(gamePhase) {
+        if (gamePhase == GamePhase.RESULTS) {
+            while (resultsTimeLeft > 0 && gamePhase == GamePhase.RESULTS) {
+                kotlinx.coroutines.delay(1000L)
+                resultsTimeLeft--
+            }
+            
+            // Auto-proceed after 5 seconds
+            if (resultsTimeLeft <= 0) {
+                if (currentRound < totalRounds) {
+                    // Go to next round
+                    currentRound++
+                    gameWords = wordRepository.getRandomWords()
+                    specialWords = wordRepository.getSpecialWords()
+                    arrangedWords = emptyList()
+                    timeLeft = 60
+                    votingTimeLeft = 20
+                    resultsTimeLeft = 5
+                    gamePhase = GamePhase.PLAYING
+                    userVote = null
+                    players = players.map { it.copy(isReady = false, selectedWords = emptyList()) }
+                } else {
+                    // Game finished - show winner
+                    gamePhase = GamePhase.WINNER
+                }
+            }
+        }
+    }
+    
     // CPU simulation effect
     LaunchedEffect(gamePhase) {
         if (gamePhase == GamePhase.PLAYING) {
@@ -180,8 +215,8 @@ fun WordGameScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .background(Color.Black)
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(8.dp), // Reduced from 12dp to 8dp
+                verticalArrangement = Arrangement.spacedBy(6.dp) // Reduced from 8dp to 6dp
             ) {
         
         // Player status and timer row
@@ -195,6 +230,14 @@ fun WordGameScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Round indicator
+                Text(
+                    text = "Round $currentRound/$totalRounds",
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                
                 players.forEach { player ->
                     Card(
                         colors = CardDefaults.cardColors(
@@ -236,9 +279,13 @@ fun WordGameScreen(
             isDraggingFromWordBank = isDraggingFromWordBank,
             wordBankDragPosition = wordBankDragPosition,
             onWordRemove = { word ->
-                // Simply remove the word and update game words
+                // Remove the word and update both game words and special words
                 arrangedWords = arrangedWords.filter { it.id != word.id }
                 gameWords = gameWords.map { 
+                    if (it.id == word.id) it.copy(isPlaced = false) 
+                    else it 
+                }
+                specialWords = specialWords.map { 
                     if (it.id == word.id) it.copy(isPlaced = false) 
                     else it 
                 }
@@ -253,6 +300,13 @@ fun WordGameScreen(
                         gameWord
                     }
                 }
+                specialWords = specialWords.map { specialWord ->
+                    if (newOrder.any { it.id == specialWord.id }) {
+                        specialWord.copy(isPlaced = true)
+                    } else {
+                        specialWord
+                    }
+                }
             },
             onWordInsertAt = { word, position ->
                 // Insert word at specific position
@@ -260,6 +314,10 @@ fun WordGameScreen(
                 mutableList.add(position, word.copy(isPlaced = true))
                 arrangedWords = mutableList
                 gameWords = gameWords.map { 
+                    if (it.id == word.id) it.copy(isPlaced = true) 
+                    else it 
+                }
+                specialWords = specialWords.map { 
                     if (it.id == word.id) it.copy(isPlaced = true) 
                     else it 
                 }
@@ -284,7 +342,7 @@ fun WordGameScreen(
         // Word Bank
         LazyVerticalGrid(
             columns = GridCells.Fixed(gridColumns),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp), // Reduced from 8dp to 4dp
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier
                 .fillMaxWidth()
@@ -391,6 +449,8 @@ fun WordGameScreen(
                         arrangedWords = emptyList()
                         timeLeft = 60
                         votingTimeLeft = 20
+                        resultsTimeLeft = 5
+                        currentRound = 1
                         gamePhase = GamePhase.PLAYING
                         userVote = null
                         players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
@@ -404,13 +464,23 @@ fun WordGameScreen(
 
                 Button(
                     onClick = {
-                        // Clear arrangement
-                        arrangedWords = emptyList()
-                        gameWords = gameWords.map { it.copy(isPlaced = false) }
-                        specialWords = specialWords.map { it.copy(isPlaced = false) }
-                    }
+                        // Mark player as ready
+                        val playerSentence = arrangedWords.map { it.text }
+                        players = players.map { 
+                            if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                            else it 
+                        }
+                    },
+                    enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981) // Modern green
+                    )
                 ) {
-                    Text("Clear")
+                    Text(
+                        text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
             
@@ -445,27 +515,7 @@ fun WordGameScreen(
             }
                 }
             }
-        
-        // Ready button
-        Button(
-            onClick = {
-                // Mark player as ready
-                val playerSentence = arrangedWords.map { it.text }
-                players = players.map { 
-                    if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
-                    else it 
-                }
-            },
-            enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Green
-            )
-        ) {
-            Text(
-                text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
-                fontWeight = FontWeight.Bold
-            )
-        }
+
         }
         
         GamePhase.VOTING -> {
@@ -539,7 +589,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = player.selectedWords.joinToString(" "),
+                                text = player.selectedWords.joinToString(" ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
@@ -571,89 +621,175 @@ fun WordGameScreen(
         }
         
         GamePhase.RESULTS -> {
-            // Results screen
+            // Results screen - formatted like voting screen for 6 players
             Column(
                 modifier = modifier
                     .fillMaxSize()
                     .background(Color.Black)
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Results header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Round Results",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFF9800).copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "${resultsTimeLeft}s",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+                
+                // Show all sentences with authors and points - compact layout
+                players.filter { it.selectedWords.isNotEmpty() }.forEach { player ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.Gray.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${player.name}: ${player.selectedWords.joinToString(" ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            if (player.points > 0) {
+                                Text(
+                                    text = "+${player.points}",
+                                    color = Color.Green,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        GamePhase.WINNER -> {
+            // Winner screen with grand styling
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF1A1A2E),
+                                Color(0xFF16213E),
+                                Color(0xFF0F172A)
+                            )
+                        )
+                    )
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(
-                    text = "Round Results",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                // Show all sentences with authors and points
-                players.filter { it.selectedWords.isNotEmpty() }.forEach { player ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.Gray.copy(alpha = 0.2f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                // Trophy decorations
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "🏆",
+                        fontSize = 48.sp
+                    )
+                    
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = player.name,
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                
-                                if (player.points > 0) {
-                                    Text(
-                                        text = "+${player.points}",
-                                        color = Color.Green,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.height(4.dp))
-                            
-                            Text(
-                                text = player.selectedWords.joinToString(" "),
-                                color = Color.Gray,
-                                fontSize = 14.sp
-                            )
-                        }
+                        Text(
+                            text = "WINNER!",
+                            color = Color(0xFFFFD700), // Gold color
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Winner's name in grand font
+                        val winner = players.maxByOrNull { it.points }
+                        Text(
+                            text = winner?.name ?: "Unknown",
+                            color = Color.White,
+                            fontSize = 48.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "${winner?.points ?: 0} points",
+                            color = Color(0xFF9CA3AF),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
+                    
+                    Text(
+                        text = "🏆",
+                        fontSize = 48.sp
+                    )
                 }
                 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(48.dp))
                 
+                // Play again button
                 Button(
                     onClick = {
-                        // Reset for next round
+                        // Reset entire game
                         gameWords = wordRepository.getRandomWords()
+                        specialWords = wordRepository.getSpecialWords()
                         arrangedWords = emptyList()
                         timeLeft = 60
                         votingTimeLeft = 20
+                        resultsTimeLeft = 5
+                        currentRound = 1
                         gamePhase = GamePhase.PLAYING
                         userVote = null
-                        players = players.map { it.copy(isReady = false, selectedWords = emptyList()) }
+                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                        containerColor = Color(0xFF10B981)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Next Round")
+                    Text(
+                        text = "Play Again",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
         }

@@ -22,34 +22,34 @@ fun WordCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color(0xFF4F46E5) // Modern indigo
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp
+            defaultElevation = 6.dp
         ),
-        border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
+        border = BorderStroke(2.dp, Color(0xFF818CF8).copy(alpha = 0.4f))
     ) {
-                       Box(
-                   contentAlignment = Alignment.Center,
-                   modifier = Modifier
-                       .padding(
-                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
-                           end = 8.dp,
-                           top = 6.dp,
-                           bottom = 6.dp
-                       )
-                       .fillMaxSize() // Fill the grid cell completely
-               ) {
-                               Text(
-                       text = word.text,
-                       color = Color.Black,
-                       fontSize = 16.sp,
-                       fontWeight = FontWeight.Normal,
-                       maxLines = 1,
-                       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                   )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(
+                    start = if (word.text == "'s") 1.dp else 12.dp,
+                    end = 12.dp,
+                    top = 4.dp, // Reduced from 8dp to 4dp for shorter cards  
+                    bottom = 4.dp
+                )
+                .fillMaxSize()
+        ) {
+            Text(
+                text = word.text,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
     }
 }

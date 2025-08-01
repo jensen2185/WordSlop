@@ -6,11 +6,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.material3.MaterialTheme
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.babbler.ui.screens.MainMenuScreen
 import com.example.babbler.ui.screens.WordGameScreen
 
@@ -22,7 +25,12 @@ sealed class Screen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        
+        // Configure status bar styling
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.isAppearanceLightStatusBars = false // Dark status bar content
+        
         setContent {
             MaterialTheme {
                 BabblerApp()
@@ -35,7 +43,11 @@ class MainActivity : ComponentActivity() {
 fun BabblerApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.MainMenu) }
     
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+    ) { innerPadding ->
         when (currentScreen) {
             Screen.MainMenu -> {
                 MainMenuScreen(

@@ -74,37 +74,40 @@ fun DraggableWordCard(
                            onDragWithGlobalPosition(offset, currentGlobalPosition)
                        }
             },
-        shape = RoundedCornerShape(4.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = if (isDragging) Color(0xFF7C3AED) else Color(0xFF4F46E5) // Purple when dragging, indigo otherwise
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isDragging) 8.dp else 2.dp
+            defaultElevation = if (isDragging) 12.dp else 6.dp
         ),
-        border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
+        border = BorderStroke(
+            width = if (isDragging) 3.dp else 2.dp,
+            color = if (isDragging) Color(0xFFA855F7) else Color(0xFF818CF8).copy(alpha = 0.4f)
+        )
     ) {
                        Box(
                    contentAlignment = Alignment.Center,
                    modifier = Modifier
                        .padding(
-                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
-                           end = 8.dp,
-                           top = 6.dp,
-                           bottom = 6.dp
+                           start = if (word.text == "'s") 1.dp else 12.dp,
+                           end = 12.dp,
+                           top = 4.dp, // Reduced from 8dp to 4dp for shorter cards
+                           bottom = 4.dp
                        )
                        .then(
                            if (fillMaxSize) Modifier.fillMaxSize() // Grid cells - no gaps
                            else Modifier.wrapContentWidth().wrapContentHeight() // Special words - compact
                        )
                ) {
-                                   Text(
-                           text = word.text,
-                           color = Color.Black,
-                           fontSize = 16.sp,
-                           fontWeight = FontWeight.Normal,
-                           maxLines = 1,
-                           overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                       )
+                   Text(
+                       text = word.text,
+                       color = Color.White,
+                       fontSize = 16.sp,
+                       fontWeight = FontWeight.SemiBold,
+                       maxLines = 1,
+                       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                   )
         }
     }
 }
