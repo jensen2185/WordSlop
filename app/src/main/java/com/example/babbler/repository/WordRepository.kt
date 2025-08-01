@@ -100,4 +100,19 @@ class WordRepository {
         // Shuffle the final list and return exactly 20 words
         return selectedWords.shuffled()
     }
+    
+    /**
+     * Gets the 7 special always-present words
+     */
+    fun getSpecialWords(): List<Word> {
+        return listOf(
+            Word(1000, "a", WordType.ARTICLE),
+            Word(1001, "s", WordType.NOUN), // For plurals
+            Word(1002, "'s", WordType.NOUN), // For possessives (special styling)
+            Word(1003, "as", WordType.CONJUNCTION),
+            Word(1004, "to", WordType.PREPOSITION),
+            Word(1005, "in", WordType.PREPOSITION),
+            Word(1006, "the", WordType.ARTICLE)
+        )
+    }
 }

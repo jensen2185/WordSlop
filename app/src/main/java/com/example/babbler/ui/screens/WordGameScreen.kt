@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +46,7 @@ fun WordGameScreen(
 ) {
     val wordRepository = remember { WordRepository() }
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
+    var specialWords by remember { mutableStateOf(wordRepository.getSpecialWords()) }
     // Simple list of words in order
     var arrangedWords by remember { mutableStateOf<List<Word>>(emptyList()) }
     var draggedWordId by remember { mutableStateOf<Int?>(null) }
@@ -65,6 +68,46 @@ fun WordGameScreen(
             Player("CPU2", false, emptyList()),
             Player("CPU3", false, emptyList())
         )) 
+    }
+    
+    // Helper function for word insertion
+    val onWordInsertAt: (Word, Float) -> Unit = { word, relativeX ->
+        if (arrangedWords.isEmpty()) {
+            arrangedWords = listOf(word.copy(isPlaced = true))
+            // Update appropriate word list
+            if (gameWords.any { it.id == word.id }) {
+                gameWords = gameWords.map {
+                    if (it.id == word.id) it.copy(isPlaced = true) else it
+                }
+            } else {
+                specialWords = specialWords.map {
+                    if (it.id == word.id) it.copy(isPlaced = true) else it
+                }
+            }
+        } else {
+            var wordsToMyLeft = 0
+            for (i in arrangedWords.indices) {
+                val wordPosition = actualWordPositions[i]
+                if (wordPosition != null && relativeX > wordPosition) {
+                    wordsToMyLeft++
+                }
+            }
+            val insertionIndex = wordsToMyLeft.coerceIn(0, arrangedWords.size)
+            val mutableList = arrangedWords.toMutableList()
+            mutableList.add(insertionIndex, word.copy(isPlaced = true))
+            arrangedWords = mutableList
+            
+            // Update appropriate word list
+            if (gameWords.any { it.id == word.id }) {
+                gameWords = gameWords.map {
+                    if (it.id == word.id) it.copy(isPlaced = true) else it
+                }
+            } else {
+                specialWords = specialWords.map {
+                    if (it.id == word.id) it.copy(isPlaced = true) else it
+                }
+            }
+        }
     }
     
     val configuration = LocalConfiguration.current
@@ -344,6 +387,7 @@ fun WordGameScreen(
                     onClick = {
                         // Reset game
                         gameWords = wordRepository.getRandomWords()
+                        specialWords = wordRepository.getSpecialWords()
                         arrangedWords = emptyList()
                         timeLeft = 60
                         votingTimeLeft = 20
@@ -363,34 +407,65 @@ fun WordGameScreen(
                         // Clear arrangement
                         arrangedWords = emptyList()
                         gameWords = gameWords.map { it.copy(isPlaced = false) }
+                        specialWords = specialWords.map { it.copy(isPlaced = false) }
                     }
                 ) {
                     Text("Clear")
                 }
             }
             
-            // Ready button
-            Button(
-                onClick = {
-                    // Mark player as ready
-                    val playerSentence = arrangedWords.map { it.text }
-                    players = players.map { 
-                        if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
-                        else it 
-                    }
-                },
-                enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Green
-                )
+            // Special Words Section (right side)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.wrapContentWidth()
             ) {
-                Text(
-                    text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
-                    fontWeight = FontWeight.Bold
-                )
+                items(specialWords.filter { !it.isPlaced }) { word ->
+                    DraggableWordCard(
+                        word = word,
+                        fillMaxSize = false, // Compact sizing for special words
+                        isDragging = draggedWordId == word.id,
+                        onDragStart = {
+                            draggedWordId = word.id
+                            isDraggingFromWordBank = true
+                        },
+                        onDragEndWithGlobalPosition = { dragOffset, finalGlobalPosition ->
+                            val relativeX = finalGlobalPosition.x - topBarGlobalX
+                            if (relativeX > 0 && relativeX < topBarWidth) {
+                                onWordInsertAt(word, relativeX)
+                            }
+                            draggedWordId = null
+                            isDraggingFromWordBank = false
+                        },
+                        onDragWithGlobalPosition = { dragOffset, globalPosition ->
+                            wordBankDragPosition = globalPosition.x - topBarGlobalX
+                            isDraggingFromWordBank = true
+                        }
+                    )
+                }
             }
                 }
             }
+        
+        // Ready button
+        Button(
+            onClick = {
+                // Mark player as ready
+                val playerSentence = arrangedWords.map { it.text }
+                players = players.map { 
+                    if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                    else it 
+                }
+            },
+            enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Green
+            )
+        ) {
+            Text(
+                text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
+                fontWeight = FontWeight.Bold
+            )
+        }
         }
         
         GamePhase.VOTING -> {

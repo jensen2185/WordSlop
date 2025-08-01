@@ -249,19 +249,27 @@ fun DraggableArrangedWord(
                 }
             }
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .wrapContentSize()
-        ) {
-            // ALWAYS show just the word - no debug text that changes card size!
-            Text(
-                text = word.text,
-                color = Color.Black,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Normal
-            )
+                       Box(
+                   contentAlignment = Alignment.Center,
+                   modifier = Modifier
+                       .padding(
+                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
+                           end = 8.dp,
+                           top = 6.dp,
+                           bottom = 6.dp
+                       )
+                       .wrapContentWidth() // Allow natural width based on text
+                       .wrapContentHeight()
+               ) {
+                               // ALWAYS show just the word - no debug text that changes card size!
+                   Text(
+                       text = word.text,
+                       color = Color.Black,
+                       fontSize = 16.sp,
+                       fontWeight = FontWeight.Normal,
+                       maxLines = 1,
+                       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                   )
         }
     }
 }

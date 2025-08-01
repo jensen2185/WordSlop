@@ -28,6 +28,7 @@ fun DraggableWordCard(
     word: Word,
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
+    fillMaxSize: Boolean = true, // Fill grid cell (main bank) vs wrap content (special words)
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit = {},
     onDragEndWithPosition: (Offset) -> Unit = { _ -> },
@@ -82,18 +83,28 @@ fun DraggableWordCard(
         ),
         border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .wrapContentSize()
-        ) {
-            Text(
-                text = word.text,
-                color = Color.Black,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Normal
-            )
+                       Box(
+                   contentAlignment = Alignment.Center,
+                   modifier = Modifier
+                       .padding(
+                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
+                           end = 8.dp,
+                           top = 6.dp,
+                           bottom = 6.dp
+                       )
+                       .then(
+                           if (fillMaxSize) Modifier.fillMaxSize() // Grid cells - no gaps
+                           else Modifier.wrapContentWidth().wrapContentHeight() // Special words - compact
+                       )
+               ) {
+                                   Text(
+                           text = word.text,
+                           color = Color.Black,
+                           fontSize = 16.sp,
+                           fontWeight = FontWeight.Normal,
+                           maxLines = 1,
+                           overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                       )
         }
     }
 }

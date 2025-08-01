@@ -31,18 +31,25 @@ fun WordCard(
         ),
         border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .wrapContentSize()
-        ) {
-            Text(
-                text = word.text,
-                color = Color.Black,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Normal
-            )
+                       Box(
+                   contentAlignment = Alignment.Center,
+                   modifier = Modifier
+                       .padding(
+                           start = if (word.text == "'s") 1.dp else 8.dp, // Minimal left padding for 's
+                           end = 8.dp,
+                           top = 6.dp,
+                           bottom = 6.dp
+                       )
+                       .fillMaxSize() // Fill the grid cell completely
+               ) {
+                               Text(
+                       text = word.text,
+                       color = Color.Black,
+                       fontSize = 16.sp,
+                       fontWeight = FontWeight.Normal,
+                       maxLines = 1,
+                       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                   )
         }
     }
 }
