@@ -76,7 +76,7 @@ fun DraggableWordCard(
             },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isDragging) Color(0xFF7C3AED) else Color(0xFF4F46E5) // Purple when dragging, indigo otherwise
+            containerColor = if (isDragging) Color(0xFFE5E7EB) else Color(0xFFF8F9FA) // Slightly darker gray when dragging, light grayish white otherwise
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isDragging) 12.dp else 6.dp
@@ -102,7 +102,7 @@ fun DraggableWordCard(
                ) {
                    Text(
                        text = word.text,
-                       color = Color.White,
+                       color = Color(0xFF1F2937), // Dark gray text on light background
                        fontSize = 16.sp,
                        fontWeight = FontWeight.SemiBold,
                        maxLines = 1,

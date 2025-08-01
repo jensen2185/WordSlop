@@ -144,7 +144,7 @@ fun DraggableArrangedWord(
     Card(
         shape = RoundedCornerShape(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF4F46E5)
+            containerColor = Color(0xFFF8F9FA) // Light grayish white
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = if (isDragging) 8.dp else 2.dp

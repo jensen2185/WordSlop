@@ -24,7 +24,7 @@ fun WordCard(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF4F46E5) // Modern indigo
+            containerColor = Color(0xFFF8F9FA) // Light grayish white
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 6.dp
@@ -44,7 +44,7 @@ fun WordCard(
         ) {
             Text(
                 text = word.text,
-                color = Color.White,
+                color = Color(0xFF1F2937), // Dark gray text on light background
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
