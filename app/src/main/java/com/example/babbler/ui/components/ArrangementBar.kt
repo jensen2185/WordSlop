@@ -20,6 +20,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import com.example.babbler.model.Word
 import kotlin.math.roundToInt
 
@@ -37,31 +40,35 @@ fun ArrangementBar(
         modifier = modifier
             .fillMaxWidth()
             .height(60.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 2.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(8.dp)
-            )
+            .background(Color.Black)
             .padding(8.dp)
+
     ) {
-        if (arrangedWords.isEmpty()) {
-            Text(
-                text = "Drag words here",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.align(Alignment.CenterStart)
+        // Words container
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .align(Alignment.TopCenter)
+        ) {
+            // Line below words
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(Color.White.copy(alpha = 0.3f))
+                    .align(Alignment.BottomCenter)
             )
-        } else {
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                itemsIndexed(arrangedWords) { index, word ->
+                itemsIndexed(
+                    items = arrangedWords,
+                    key = { index, word -> "${word.id}-$index" }
+                ) { index, word ->
+                    // Each word in the list should be visible
                     DraggableArrangedWord(
                         word = word,
                         index = index,
@@ -70,7 +77,9 @@ fun ArrangementBar(
                         onWordsReordered = onWordsReordered,
                         onDragStart = onDragStart,
                         onDragEnd = onDragEnd,
-                        modifier = Modifier.height(44.dp)
+                        modifier = Modifier
+                            .height(44.dp)
+                            .zIndex(1f)  // Ensure words are always visible
                     )
                 }
             }
@@ -79,7 +88,7 @@ fun ArrangementBar(
 }
 
 @Composable
-private fun DraggableArrangedWord(
+fun DraggableArrangedWord(
     word: Word,
     index: Int,
     arrangedWords: List<Word>,
@@ -104,7 +113,7 @@ private fun DraggableArrangedWord(
         modifier = modifier
             .offset { 
                 IntOffset(
-                    offset.x.roundToInt(), 
+                    offset.x.roundToInt(),
                     offset.y.roundToInt()
                 ) 
             }
@@ -123,16 +132,19 @@ private fun DraggableArrangedWord(
                         if (offset.y > 80) {
                             onWordRemove(word)
                             return@detectDragGestures
-                        } else if (kotlin.math.abs(offset.x) > 50) {
-                            // Horizontal drag - reorder within arrangement
-                            val cardWidth = 80 // Approximate width including spacing
-                            val positionChange = (offset.x / cardWidth).roundToInt()
-                            val newIndex = (index + positionChange).coerceIn(0, arrangedWords.size - 1)
+                        } else {
+                            // Simple relative movement calculation
+                            val moveDistance = offset.x
+                            val moveRight = moveDistance > 40f && index < arrangedWords.size - 1
+                            val moveLeft = moveDistance < -40f && index > 0
                             
-                            if (newIndex != index) {
+                            if (moveRight || moveLeft) {
+                                val targetIndex = if (moveRight) index + 1 else index - 1
+                                
+                                // Simple reordering without animation
                                 val mutableList = arrangedWords.toMutableList()
                                 val draggedWord = mutableList.removeAt(index)
-                                mutableList.add(newIndex, draggedWord)
+                                mutableList.add(targetIndex, draggedWord)
                                 onWordsReordered(mutableList)
                             }
                         }

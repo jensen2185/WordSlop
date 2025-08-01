@@ -1,5 +1,6 @@
 package com.example.babbler.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -8,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,6 +26,7 @@ fun WordGameScreen(
 ) {
     val wordRepository = remember { WordRepository() }
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
+    // Simple list of words in order
     var arrangedWords by remember { mutableStateOf<List<Word>>(emptyList()) }
     var draggedWordId by remember { mutableStateOf<Int?>(null) }
     
@@ -41,6 +44,7 @@ fun WordGameScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(Color.Black)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -49,11 +53,8 @@ fun WordGameScreen(
             arrangedWords = arrangedWords,
             draggedWordId = draggedWordId,
             onWordRemove = { word ->
-                // Remove word from arrangement and make it available again
-                val updatedArrangedWords = arrangedWords.filter { it.id != word.id }
-                arrangedWords = updatedArrangedWords
-                
-                // Update game words to reflect the removal
+                // Simply remove the word and update game words
+                arrangedWords = arrangedWords.filter { it.id != word.id }
                 gameWords = gameWords.map { 
                     if (it.id == word.id) it.copy(isPlaced = false) 
                     else it 
@@ -61,6 +62,14 @@ fun WordGameScreen(
             },
             onWordsReordered = { newOrder ->
                 arrangedWords = newOrder
+                // Ensure all arranged words are marked as placed
+                gameWords = gameWords.map { gameWord ->
+                    if (newOrder.any { it.id == gameWord.id }) {
+                        gameWord.copy(isPlaced = true)
+                    } else {
+                        gameWord
+                    }
+                }
             },
             onDragStart = { wordId ->
                 draggedWordId = wordId
@@ -80,7 +89,7 @@ fun WordGameScreen(
                 .fillMaxWidth()
                 .weight(1f)
         ) {
-            items(gameWords.filter { !it.isPlaced && !arrangedWords.any { arranged -> arranged.id == it.id } }) { word ->
+            items(gameWords.filter { !it.isPlaced }) { word ->
                 DraggableWordCard(
                     word = word,
                     isDragging = draggedWordId == word.id,
@@ -89,7 +98,7 @@ fun WordGameScreen(
                     },
                     onDragEnd = {
                         if (draggedWordId == word.id) {
-                            // Only add to arrangement if not already there
+                            // Add to arrangement if not already there
                             if (!arrangedWords.any { it.id == word.id }) {
                                 arrangedWords = arrangedWords + word.copy(isPlaced = true)
                                 gameWords = gameWords.map { 
