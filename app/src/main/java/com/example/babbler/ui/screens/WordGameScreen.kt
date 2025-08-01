@@ -9,7 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -29,6 +32,8 @@ fun WordGameScreen(
     // Simple list of words in order
     var arrangedWords by remember { mutableStateOf<List<Word>>(emptyList()) }
     var draggedWordId by remember { mutableStateOf<Int?>(null) }
+    var topBarGlobalX by remember { mutableStateOf(0f) }
+    var topBarWidth by remember { mutableStateOf(0f) }
     
     val configuration = LocalConfiguration.current
     
@@ -71,13 +76,28 @@ fun WordGameScreen(
                     }
                 }
             },
+            onWordInsertAt = { word, position ->
+                // Insert word at specific position
+                val mutableList = arrangedWords.toMutableList()
+                mutableList.add(position, word.copy(isPlaced = true))
+                arrangedWords = mutableList
+                gameWords = gameWords.map { 
+                    if (it.id == word.id) it.copy(isPlaced = true) 
+                    else it 
+                }
+            },
             onDragStart = { wordId ->
                 draggedWordId = wordId
             },
             onDragEnd = {
                 draggedWordId = null
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coordinates ->
+                    topBarGlobalX = coordinates.positionInRoot().x
+                    topBarWidth = coordinates.size.width.toFloat()
+                }
         )
         
         // Word Bank
@@ -96,17 +116,51 @@ fun WordGameScreen(
                     onDragStart = {
                         draggedWordId = word.id
                     },
-                    onDragEnd = {
+                    onDragEndWithGlobalPosition = { dragOffset, finalGlobalPosition ->
                         if (draggedWordId == word.id) {
-                            // Add to arrangement if not already there
-                            if (!arrangedWords.any { it.id == word.id }) {
-                                arrangedWords = arrangedWords + word.copy(isPlaced = true)
+                            // Add to arrangement if not already there and dragged upward
+                            if (!arrangedWords.any { it.id == word.id } && dragOffset.y < -50) {
+                                
+                                // Physics-based insertion: compare X positions to determine order
+                                val dropX = finalGlobalPosition.x
+                                val relativeDropX = dropX - topBarGlobalX
+                                
+                                // Find insertion index by comparing X positions
+                                var insertionIndex = 0
+                                val cardWidth = 84f // Approximate card width + spacing
+                                
+                                // If no words exist, place at position 0
+                                if (arrangedWords.isEmpty()) {
+                                    insertionIndex = 0
+                                } else {
+                                    // Compare drop position against existing word positions
+                                    for (i in arrangedWords.indices) {
+                                        val wordX = i * cardWidth // Calculate each word's X position
+                                        if (relativeDropX > wordX + (cardWidth / 2)) {
+                                            // Drop position is past the midpoint of this word
+                                            insertionIndex = i + 1
+                                        } else {
+                                            // Drop position is before this word's midpoint
+                                            break
+                                        }
+                                    }
+                                    // Ensure index doesn't exceed list size
+                                    insertionIndex = insertionIndex.coerceIn(0, arrangedWords.size)
+                                }
+                                
+                                // Insert word at calculated position
+                                val mutableList = arrangedWords.toMutableList()
+                                mutableList.add(insertionIndex, word.copy(isPlaced = true))
+                                arrangedWords = mutableList
+                                
                                 gameWords = gameWords.map { 
                                     if (it.id == word.id) it.copy(isPlaced = true) 
                                     else it 
                                 }
                             }
                         }
+                    },
+                    onDragEnd = {
                         draggedWordId = null
                     },
                     modifier = Modifier.wrapContentWidth()

@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -28,12 +30,20 @@ fun DraggableWordCard(
     isDragging: Boolean = false,
     onDragStart: () -> Unit = {},
     onDragEnd: () -> Unit = {},
+    onDragEndWithPosition: (Offset) -> Unit = { _ -> },
+    onDragEndWithGlobalPosition: (Offset, Offset) -> Unit = { _, _ -> },
     onDrag: (Offset) -> Unit = {}
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var initialGlobalPosition by remember { mutableStateOf(Offset.Zero) }
     
     Card(
         modifier = modifier
+            .onGloballyPositioned { coordinates ->
+                if (!isDragging) {
+                    initialGlobalPosition = coordinates.positionInRoot()
+                }
+            }
             .offset { 
                 IntOffset(
                     offset.x.roundToInt(), 
@@ -47,6 +57,9 @@ fun DraggableWordCard(
                         onDragStart()
                     },
                     onDragEnd = {
+                        val finalGlobalPosition = initialGlobalPosition + offset
+                        onDragEndWithPosition(offset)
+                        onDragEndWithGlobalPosition(offset, finalGlobalPosition)
                         onDragEnd()
                         offset = Offset.Zero
                     }

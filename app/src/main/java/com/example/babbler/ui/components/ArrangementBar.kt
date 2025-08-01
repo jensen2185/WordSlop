@@ -20,9 +20,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import com.example.babbler.model.Word
 import kotlin.math.roundToInt
 
@@ -32,6 +29,7 @@ fun ArrangementBar(
     modifier: Modifier = Modifier,
     onWordRemove: (Word) -> Unit = {},
     onWordsReordered: (List<Word>) -> Unit = {},
+    onWordInsertAt: (Word, Int) -> Unit = { _, _ -> },
     draggedWordId: Int? = null,
     onDragStart: (Int) -> Unit = {},
     onDragEnd: () -> Unit = {}
