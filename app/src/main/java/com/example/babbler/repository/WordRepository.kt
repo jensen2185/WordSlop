@@ -1,7 +1,7 @@
-package com.example.babbler.repository
+package com.example.wordslop.repository
 
-import com.example.babbler.model.Word
-import com.example.babbler.model.WordType
+import com.example.wordslop.model.Word
+import com.example.wordslop.model.WordType
 
 /**
  * Repository for managing words in the game

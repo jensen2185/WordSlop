@@ -1,4 +1,4 @@
-package com.example.babbler.ui.screens
+package com.example.wordslop.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,11 +22,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.babbler.model.Word
-import com.example.babbler.repository.WordRepository
-import com.example.babbler.ui.components.WordCard
-import com.example.babbler.ui.components.DraggableWordCard
-import com.example.babbler.ui.components.ArrangementBar
+import com.example.wordslop.model.Word
+import com.example.wordslop.repository.WordRepository
+import com.example.wordslop.ui.components.WordCard
+import com.example.wordslop.ui.components.DraggableWordCard
+import com.example.wordslop.ui.components.ArrangementBar
+import com.example.wordslop.ui.components.SelfVoteWarningDialog
 import kotlin.math.roundToInt
 
 data class Player(
@@ -103,7 +104,8 @@ fun WordGameScreen(
     var resultsTimeLeft by remember { mutableStateOf(5) }
     var userVote by remember { mutableStateOf<Int?>(null) }
     var currentRound by remember { mutableStateOf(1) }
-    var totalRounds by remember { mutableStateOf(2) }
+    var totalRounds by remember { mutableStateOf(3) }
+    var showSelfVoteWarning by remember { mutableStateOf(false) }
     var players by remember { 
         mutableStateOf(listOf(
             Player("You", false, emptyList()),
@@ -413,9 +415,9 @@ fun WordGameScreen(
                                 // Use actual measured word positions for accurate insertion
                                 var insertionIndex = 0
                                 
-                                                            if (arrangedWords.isEmpty()) {
-                                insertionIndex = 0
-                            } else {
+                                if (arrangedWords.isEmpty()) {
+                                    insertionIndex = 0
+                                } else {
                                 // Use ACTUAL word positions (same logic as top bar reordering)
                                 var wordsToMyLeft = 0
                                 
@@ -606,13 +608,18 @@ fun WordGameScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(enabled = userVote == null) {
-                                userVote = index
-                                // Award point to voted player and CPUs vote for user
-                                players = players.map { p ->
-                                    when {
-                                        p.name == player.name -> p.copy(points = p.points + 1) // User's vote
-                                        p.name == "You" -> p.copy(points = p.points + 3) // CPUs vote for user
-                                        else -> p
+                                // Check if user is trying to vote for their own sentence
+                                if (player.name == "You") {
+                                    showSelfVoteWarning = true
+                                } else {
+                                    userVote = index
+                                    // Award point to voted player and CPUs vote for user
+                                    players = players.map { p ->
+                                        when {
+                                            p.name == player.name -> p.copy(points = p.points + 1) // User's vote
+                                            p.name == "You" -> p.copy(points = p.points + 3) // CPUs vote for user
+                                            else -> p
+                                        }
                                     }
                                 }
                             },
@@ -833,5 +840,12 @@ fun WordGameScreen(
                 }
             }
         }
+    }
+    
+    // Self-vote warning dialog
+    if (showSelfVoteWarning) {
+        SelfVoteWarningDialog(
+            onDismiss = { showSelfVoteWarning = false }
+        )
     }
 }

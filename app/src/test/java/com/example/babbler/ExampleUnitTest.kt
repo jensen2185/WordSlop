@@ -1,4 +1,4 @@
-package com.example.babbler
+package com.example.wordslop
 
 import org.junit.Test
 

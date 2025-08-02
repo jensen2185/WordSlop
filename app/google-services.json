@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "101946411201",
+    "project_id": "warriors-5fa9b2e5",
+    "storage_bucket": "warriors-5fa9b2e5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101946411201:android:ba6a41109f47250ee86c40",
+        "android_client_info": {
+          "package_name": "com.example.warriors"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSwBwUrv8kIquGwbjhkJXJEnOxoRcWLNw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:101946411201:android:25a404f05b03e92ae86c40",
+        "android_client_info": {
+          "package_name": "com.example.wordslop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSwBwUrv8kIquGwbjhkJXJEnOxoRcWLNw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

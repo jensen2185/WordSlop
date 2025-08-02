@@ -1,4 +1,4 @@
-package com.example.babbler.model
+package com.example.wordslop.model
 
 /**
  * Represents the type of a word in the game

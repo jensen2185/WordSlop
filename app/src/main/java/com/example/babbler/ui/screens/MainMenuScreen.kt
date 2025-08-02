@@ -1,5 +1,8 @@
-package com.example.babbler.ui.screens
+package com.example.wordslop.ui.screens
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,20 +13,61 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.wordslop.auth.AuthResult
+import com.example.wordslop.auth.FirebaseAuthManager
+import com.example.wordslop.auth.UserInfo
+import com.example.wordslop.auth.createGuestUser
+import com.example.wordslop.ui.components.UsernameSelectionDialog
+import com.example.wordslop.ui.components.GuestLoginDialog
+import kotlinx.coroutines.launch
 
 @Composable
 fun MainMenuScreen(
     modifier: Modifier = Modifier,
-    onJoinGame: () -> Unit = {},
-    onCreateGame: () -> Unit = {},
-    onPracticeMode: () -> Unit = {}
+    onJoinGame: (UserInfo) -> Unit = {},
+    onCreateGame: (UserInfo) -> Unit = {},
+    onPracticeMode: (UserInfo) -> Unit = {}
 ) {
-    var isLoggedIn by remember { mutableStateOf(false) }
-    var username by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val authManager = remember { FirebaseAuthManager(context) }
+    val scope = rememberCoroutineScope()
+    
+    var userInfo by remember { mutableStateOf(authManager.getCurrentUserInfo()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showUsernameDialog by remember { mutableStateOf(false) }
+    var showGuestDialog by remember { mutableStateOf(false) }
+    var pendingGoogleUserInfo by remember { mutableStateOf<AuthResult.Success?>(null) }
+    
+    val isLoggedIn = userInfo != null
+    
+    // Google Sign-In launcher
+    val signInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            
+            val authResult = authManager.handleSignInResult(result.data)
+            when (authResult) {
+                is AuthResult.Success -> {
+                    // Store the Google auth result and show username selection
+                    pendingGoogleUserInfo = authResult
+                    showUsernameDialog = true
+                }
+                is AuthResult.Error -> {
+                    errorMessage = authResult.message
+                }
+            }
+            isLoading = false
+        }
+    }
 
     Row(
         modifier = modifier
@@ -95,36 +139,83 @@ fun MainMenuScreen(
                     
                     Button(
                         onClick = {
-                            // Simulate Google login
-                            isLoggedIn = true
-                            username = "Player_${(1000..9999).random()}"
+                            scope.launch {
+                                isLoading = true
+                                errorMessage = null
+                                authManager.startGoogleSignIn(signInLauncher)
+                            }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.White
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.Black
+                            )
+                        } else {
+                            Text(
+                                text = "Sign in with Google",
+                                color = Color.Black,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    // Show error message if any
+                    errorMessage?.let { error ->
                         Text(
-                            text = "Sign in with Google",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Medium
+                            text = error,
+                            color = Color.Red,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
                         )
                     }
                     
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Divider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = Color.Gray.copy(alpha = 0.3f)
+                        )
+                        Text(
+                            text = " OR ",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        Divider(
+                            modifier = Modifier.weight(1f),
+                            color = Color.Gray.copy(alpha = 0.3f)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // Play as Guest button
                     OutlinedButton(
                         onClick = {
-                            // Simulate username creation
-                            isLoggedIn = true
-                            username = "Guest_${(100..999).random()}"
+                            showGuestDialog = true
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.White
+                            contentColor = Color(0xFFFF9800)
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Create Username")
+                        Text(
+                            text = "Play as Guest",
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
             }
@@ -142,19 +233,61 @@ fun MainMenuScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Welcome back!",
-                        fontSize = 18.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium
-                    )
-                    
-                    Text(
-                        text = username,
-                        fontSize = 24.sp,
-                        color = Color.Green,
-                        fontWeight = FontWeight.Bold
-                    )
+                                            Text(
+                            text = "Welcome back!",
+                            fontSize = 18.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        Text(
+                            text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
+                            fontSize = 24.sp,
+                            color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        if (userInfo?.isGuest == true) {
+                            Text(
+                                text = "Guest Player",
+                                fontSize = 14.sp,
+                                color = Color(0xFFFF9800),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.Medium
+                            )
+                        } else {
+                            userInfo?.email?.let { email ->
+                                Text(
+                                    text = email,
+                                    fontSize = 14.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        OutlinedButton(
+                            onClick = {
+                                if (userInfo?.isGuest != true) {
+                                    authManager.signOut()
+                                }
+                                userInfo = null
+                                errorMessage = null
+                                pendingGoogleUserInfo = null
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Sign Out",
+                                fontSize = 12.sp
+                            )
+                        }
                 }
             }
             }
@@ -164,7 +297,7 @@ fun MainMenuScreen(
             // Game Mode Buttons
             if (isLoggedIn) {
                 Button(
-                    onClick = onJoinGame,
+                    onClick = { userInfo?.let { onJoinGame(it) } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -184,7 +317,7 @@ fun MainMenuScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Button(
-                    onClick = onCreateGame,
+                    onClick = { userInfo?.let { onCreateGame(it) } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -204,7 +337,7 @@ fun MainMenuScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 OutlinedButton(
-                    onClick = onPracticeMode,
+                    onClick = { userInfo?.let { onPracticeMode(it) } },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -232,5 +365,44 @@ fun MainMenuScreen(
                 textAlign = TextAlign.Center
             )
         }
+    }
+    
+    // Username Selection Dialog
+    if (showUsernameDialog) {
+        pendingGoogleUserInfo?.let { googleAuth ->
+            UsernameSelectionDialog(
+                defaultUsername = googleAuth.displayName.split(" ").firstOrNull() ?: "Player",
+                onUsernameConfirmed = { customUsername ->
+                    userInfo = com.example.wordslop.auth.UserInfo(
+                        userId = googleAuth.userId,
+                        displayName = googleAuth.displayName,
+                        email = googleAuth.email,
+                        gameUsername = customUsername,
+                        isGuest = false
+                    )
+                    showUsernameDialog = false
+                    pendingGoogleUserInfo = null
+                },
+                onDismiss = {
+                    showUsernameDialog = false
+                    pendingGoogleUserInfo = null
+                    authManager.signOut() // Sign out if they cancel username selection
+                }
+            )
+        }
+    }
+    
+    // Guest Login Dialog
+    if (showGuestDialog) {
+        GuestLoginDialog(
+            onGuestLogin = { guestUsername ->
+                userInfo = createGuestUser(guestUsername)
+                showGuestDialog = false
+                errorMessage = null
+            },
+            onDismiss = {
+                showGuestDialog = false
+            }
+        )
     }
 }

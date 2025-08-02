@@ -1,4 +1,4 @@
-package com.example.babbler.ui.components
+package com.example.wordslop.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import com.example.babbler.model.Word
+import com.example.wordslop.model.Word
 import kotlin.math.roundToInt
 import kotlin.math.abs
 

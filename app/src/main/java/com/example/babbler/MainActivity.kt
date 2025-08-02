@@ -1,4 +1,4 @@
-package com.example.babbler
+package com.example.wordslop
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,8 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.babbler.ui.screens.MainMenuScreen
-import com.example.babbler.ui.screens.WordGameScreen
+import com.example.wordslop.ui.screens.MainMenuScreen
+import com.example.wordslop.ui.screens.CreateGameScreen
+import com.example.wordslop.ui.screens.GameLobbyScreen
+import com.example.wordslop.ui.screens.WordGameScreen
+import com.example.wordslop.model.GameLobby
+import com.example.wordslop.model.LobbyPlayer
+import com.example.wordslop.model.GameSettings
+import com.example.wordslop.model.GameStatus
+import com.example.wordslop.auth.UserInfo
 
 sealed class Screen {
     object MainMenu : Screen()
@@ -43,15 +50,17 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             MaterialTheme {
-                BabblerApp()
+                WordslopApp()
             }
         }
     }
 }
 
 @Composable
-fun BabblerApp() {
+fun WordslopApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.MainMenu) }
+    var currentUser by remember { mutableStateOf<UserInfo?>(null) }
+    var currentGameLobby by remember { mutableStateOf<GameLobby?>(null) }
     
     Scaffold(
         modifier = Modifier
@@ -62,13 +71,16 @@ fun BabblerApp() {
             Screen.MainMenu -> {
                 MainMenuScreen(
                     modifier = Modifier.padding(innerPadding),
-                    onJoinGame = {
+                    onJoinGame = { user ->
+                        currentUser = user
                         currentScreen = Screen.JoinGame
                     },
-                    onCreateGame = {
+                    onCreateGame = { user ->
+                        currentUser = user
                         currentScreen = Screen.CreateGame
                     },
-                    onPracticeMode = {
+                    onPracticeMode = { user ->
+                        currentUser = user
                         currentScreen = Screen.WordGame
                     }
                 )
@@ -85,23 +97,72 @@ fun BabblerApp() {
             }
             
             Screen.CreateGame -> {
-                // TODO: Implement CreateGameScreen
-                PlaceholderScreen(
-                    title = "Create Game", 
-                    subtitle = "Set up a new game lobby",
-                    onBack = { currentScreen = Screen.MainMenu },
-                    modifier = Modifier.padding(innerPadding)
-                )
+                currentUser?.let { user ->
+                    CreateGameScreen(
+                        userInfo = user,
+                        onGameCreated = { gameSettings ->
+                            // Create a new game lobby
+                            val gameId = "game_${System.currentTimeMillis()}"
+                            val hostPlayer = LobbyPlayer(
+                                userId = user.userId,
+                                username = user.gameUsername ?: user.displayName,
+                                isReady = false,
+                                isHost = true
+                            )
+                            
+                            currentGameLobby = GameLobby(
+                                gameId = gameId,
+                                hostUserId = user.userId,
+                                hostUsername = user.gameUsername ?: user.displayName,
+                                isPublic = gameSettings.isPublic,
+                                passcode = gameSettings.passcode,
+                                maxPlayers = gameSettings.maxPlayers,
+                                numberOfRounds = gameSettings.numberOfRounds,
+                                players = listOf(hostPlayer),
+                                gameStatus = GameStatus.WAITING
+                            )
+                            
+                            currentScreen = Screen.GameLobby
+                        },
+                        onBack = { currentScreen = Screen.MainMenu },
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                } ?: run {
+                    // User not logged in, go back to main menu
+                    currentScreen = Screen.MainMenu
+                }
             }
             
             Screen.GameLobby -> {
-                // TODO: Implement GameLobbyScreen
-                PlaceholderScreen(
-                    title = "Game Lobby",
-                    subtitle = "Waiting for players...",
-                    onBack = { currentScreen = Screen.MainMenu },
-                    modifier = Modifier.padding(innerPadding)
-                )
+                currentGameLobby?.let { gameLobby ->
+                    currentUser?.let { user ->
+                        GameLobbyScreen(
+                            gameLobby = gameLobby,
+                            currentUser = user,
+                            onBack = { 
+                                currentGameLobby = null
+                                currentScreen = Screen.MainMenu 
+                            },
+                            onReady = {
+                                // Update player ready status
+                                currentGameLobby = gameLobby.copy(
+                                    players = gameLobby.players.map { player ->
+                                        if (player.userId == user.userId) {
+                                            player.copy(isReady = true)
+                                        } else player
+                                    }
+                                )
+                            },
+                            onStartGame = {
+                                currentScreen = Screen.WordGame
+                            },
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    }
+                } ?: run {
+                    // No game lobby, go back to main menu
+                    currentScreen = Screen.MainMenu
+                }
             }
             
             Screen.WordGame -> {
@@ -169,8 +230,8 @@ fun PlaceholderScreen(
 
 @Preview(showBackground = true)
 @Composable
-fun BabblerAppPreview() {
+fun WordslopAppPreview() {
     MaterialTheme {
-        BabblerApp()
+        WordslopApp()
     }
 }
