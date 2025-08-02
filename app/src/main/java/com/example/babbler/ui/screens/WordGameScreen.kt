@@ -2,6 +2,8 @@ package com.example.wordslop.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +30,7 @@ import com.example.wordslop.ui.components.WordCard
 import com.example.wordslop.ui.components.DraggableWordCard
 import com.example.wordslop.ui.components.ArrangementBar
 import com.example.wordslop.ui.components.SelfVoteWarningDialog
+import com.example.wordslop.ui.components.EmojiSelectionDialog
 import kotlin.math.roundToInt
 
 data class Player(
@@ -81,6 +84,7 @@ enum class GamePhase {
     PLAYING, VOTING, RESULTS, WINNER
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WordGameScreen(
     modifier: Modifier = Modifier
@@ -106,6 +110,9 @@ fun WordGameScreen(
     var currentRound by remember { mutableStateOf(1) }
     var totalRounds by remember { mutableStateOf(3) }
     var showSelfVoteWarning by remember { mutableStateOf(false) }
+    var showEmojiDialog by remember { mutableStateOf(false) }
+    var selectedSentenceForEmoji by remember { mutableStateOf<Int?>(null) }
+    var sentenceEmojis by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
     var players by remember { 
         mutableStateOf(listOf(
             Player("You", false, emptyList()),
@@ -224,6 +231,7 @@ fun WordGameScreen(
                     resultsTimeLeft = 5
                     gamePhase = GamePhase.PLAYING
                     userVote = null
+                    sentenceEmojis = emptyMap() // Clear emoji tags for new round
                     players = players.map { it.copy(isReady = false, selectedWords = emptyList()) }
                 } else {
                     // Game finished - show winner
@@ -495,6 +503,7 @@ fun WordGameScreen(
                         currentRound = 1
                         gamePhase = GamePhase.PLAYING
                         userVote = null
+                        sentenceEmojis = emptyMap() // Clear emoji tags for new game
                         players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -706,9 +715,21 @@ fun WordGameScreen(
                 }
                 
                 // Show all sentences with authors and points - compact layout
-                players.filter { it.selectedWords.isNotEmpty() }.forEach { player ->
+                players.filter { it.selectedWords.isNotEmpty() }.forEachIndexed { index, player ->
+                    val sentenceEmoji = sentenceEmojis[index]
+                    
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { 
+                                    // Do nothing on tap in results phase
+                                },
+                                onLongClick = {
+                                    selectedSentenceForEmoji = index
+                                    showEmojiDialog = true
+                                }
+                            ),
                         colors = CardDefaults.cardColors(
                             containerColor = Color.Gray.copy(alpha = 0.15f)
                         ),
@@ -722,7 +743,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${player.name}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
+                                text = "${player.name}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
@@ -824,6 +845,7 @@ fun WordGameScreen(
                         currentRound = 1
                         gamePhase = GamePhase.PLAYING
                         userVote = null
+                        sentenceEmojis = emptyMap() // Clear emoji tags for new game
                         players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -846,6 +868,21 @@ fun WordGameScreen(
     if (showSelfVoteWarning) {
         SelfVoteWarningDialog(
             onDismiss = { showSelfVoteWarning = false }
+        )
+    }
+    
+    // Emoji selection dialog
+    if (showEmojiDialog && selectedSentenceForEmoji != null) {
+        EmojiSelectionDialog(
+            onEmojiSelected = { emoji ->
+                sentenceEmojis = sentenceEmojis + (selectedSentenceForEmoji!! to emoji)
+                showEmojiDialog = false
+                selectedSentenceForEmoji = null
+            },
+            onDismiss = {
+                showEmojiDialog = false
+                selectedSentenceForEmoji = null
+            }
         )
     }
 }

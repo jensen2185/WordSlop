@@ -57,14 +57,14 @@ fun CreateGameScreen(
             
             Text(
                 text = "Create New Game",
-                fontSize = 24.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         // Game Settings Card
         Card(
@@ -77,87 +77,131 @@ fun CreateGameScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "Game Settings",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                
-                // Game Type Selection
-                Column {
-                    Text(
-                        text = "Game Type",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                // Game Type and Rounds in one row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Game Type Selection (Left side)
+                    Column(
+                        modifier = Modifier.weight(1f)
                     ) {
-                        // Public Game Button
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { isPublic = true },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isPublic) Color(0xFF10B981) else Color(0xFF374151)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
+                        Text(
+                            text = "Type",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
+                            // Public Game Button
+                            Card(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                    .weight(1f)
+                                    .clickable { isPublic = true },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isPublic) Color(0xFF10B981) else Color(0xFF374151)
+                                ),
+                                shape = RoundedCornerShape(6.dp)
                             ) {
-                                Text(
-                                    text = "🌍",
-                                    fontSize = 24.sp
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Public",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "🌍",
+                                        fontSize = 18.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Public",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                            
+                            // Private Game Button
+                            Card(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { isPublic = false },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (!isPublic) Color(0xFFFF9800) else Color(0xFF374151)
+                                ),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = "Private",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Private",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
+                    }
+                    
+                    // Number of Rounds (Right side)
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Rounds",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                         
-                        // Private Game Button
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { isPublic = false },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (!isPublic) Color(0xFFFF9800) else Color(0xFF374151)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(
-                                    Icons.Default.Lock,
-                                    contentDescription = "Private",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Private",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Medium
-                                )
+                            listOf(3, 7, 10).forEach { rounds ->
+                                Card(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { numberOfRounds = rounds },
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (numberOfRounds == rounds) Color(0xFF10B981) else Color(0xFF374151)
+                                    ),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = "$rounds",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -165,92 +209,35 @@ fun CreateGameScreen(
                 
                 // Passcode for Private Games
                 if (!isPublic) {
-                    Column {
-                        Text(
-                            text = "Game Passcode",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        
-                        OutlinedTextField(
-                            value = passcode,
-                            onValueChange = { 
-                                passcode = it
-                                showPasscodeError = false
-                            },
-                            placeholder = { Text("Enter 4-digit passcode", color = Color.Gray) },
-                            isError = showPasscodeError,
-                            supportingText = {
-                                if (showPasscodeError) {
-                                    Text("Passcode must be 4 digits", color = Color.Red)
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            visualTransformation = PasswordVisualTransformation(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedBorderColor = Color(0xFFFF9800),
-                                unfocusedBorderColor = Color.Gray
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-                
-                // Number of Rounds
-                Column {
-                    Text(
-                        text = "Number of Rounds",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        listOf(3, 7, 10).forEach { rounds ->
-                            Card(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { numberOfRounds = rounds },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (numberOfRounds == rounds) Color(0xFF10B981) else Color(0xFF374151)
-                                ),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text(
-                                    text = "$rounds",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 12.dp)
-                                )
+                    OutlinedTextField(
+                        value = passcode,
+                        onValueChange = { 
+                            passcode = it
+                            showPasscodeError = false
+                        },
+                        label = { Text("4-digit passcode", color = Color.Gray) },
+                        placeholder = { Text("1234", color = Color.Gray) },
+                        isError = showPasscodeError,
+                        supportingText = {
+                            if (showPasscodeError) {
+                                Text("Passcode must be 4 digits", color = Color.Red)
                             }
-                        }
-                    }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color(0xFFFF9800),
+                            unfocusedBorderColor = Color.Gray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                
-                // Players info (fixed at 6 for optimal voting experience)
-                Text(
-                    text = "Maximum Players: 6",
-                    fontSize = 14.sp,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(24.dp))
         
         // Create Game Button
         Button(
@@ -284,7 +271,5 @@ fun CreateGameScreen(
                 color = Color.White
             )
         }
-        
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
