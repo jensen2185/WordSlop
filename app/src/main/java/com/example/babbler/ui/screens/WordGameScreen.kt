@@ -36,6 +36,46 @@ data class Player(
     val points: Int = 0
 )
 
+/**
+ * Smart join function that handles special spacing for add-on words.
+ * - "s" and "'s" can join with previous regular words or "er"
+ * - "er" can join with previous regular words and allows subsequent add-ons to join with it
+ * - "as" acts as a blocker - prevents add-ons from joining with it and doesn't join with previous words
+ */
+fun smartJoinWords(words: List<String>): String {
+    if (words.isEmpty()) return ""
+    if (words.size == 1) return words[0]
+    
+    val joinableAddOns = setOf("s", "'s", "er")  // These can join with previous words
+    val blockingWords = setOf("as")  // These prevent add-ons from joining but don't join themselves
+    val joinableWithWords = setOf("er")  // These allow subsequent add-ons to join with them
+    val result = StringBuilder()
+    
+    for (i in words.indices) {
+        val currentWord = words[i]
+        
+        if (i == 0) {
+            // First word always gets added as-is
+            result.append(currentWord)
+        } else {
+            val previousWord = words[i - 1]
+            val currentIsJoinableAddOn = currentWord in joinableAddOns
+            val previousIsBlocker = previousWord in blockingWords
+            val previousIsNonJoinableAddOn = previousWord in joinableAddOns && previousWord !in joinableWithWords
+            
+            if (currentIsJoinableAddOn && !previousIsBlocker && !previousIsNonJoinableAddOn) {
+                // Current word is a joinable add-on following a regular word or "er" - no space
+                result.append(currentWord)
+            } else {
+                // All other cases - add space before current word
+                result.append(" ").append(currentWord)
+            }
+        }
+    }
+    
+    return result.toString()
+}
+
 enum class GamePhase {
     PLAYING, VOTING, RESULTS, WINNER
 }
@@ -589,7 +629,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = player.selectedWords.joinToString(" ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
+                                text = smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() },
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
@@ -675,7 +715,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${player.name}: ${player.selectedWords.joinToString(" ").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
+                                text = "${player.name}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,

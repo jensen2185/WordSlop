@@ -18,7 +18,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MainMenuScreen(
     modifier: Modifier = Modifier,
-    onPlayOnline: () -> Unit = {},
+    onJoinGame: () -> Unit = {},
+    onCreateGame: () -> Unit = {},
     onPracticeMode: () -> Unit = {}
 ) {
     var isLoggedIn by remember { mutableStateOf(false) }
@@ -41,7 +42,7 @@ fun MainMenuScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "BABBLER",
+                text = "WORDSLOP",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -163,7 +164,7 @@ fun MainMenuScreen(
             // Game Mode Buttons
             if (isLoggedIn) {
                 Button(
-                    onClick = onPlayOnline,
+                    onClick = onJoinGame,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
@@ -174,7 +175,27 @@ fun MainMenuScreen(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "PLAY ONLINE",
+                        text = "JOIN GAME",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Button(
+                    onClick = onCreateGame,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .padding(horizontal = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF10B981) // Green color for create game
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "CREATE GAME",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )

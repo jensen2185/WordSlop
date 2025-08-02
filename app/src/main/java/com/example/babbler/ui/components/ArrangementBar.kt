@@ -237,7 +237,7 @@ fun DraggableArrangedWord(
                    contentAlignment = Alignment.Center,
                    modifier = Modifier
                        .padding(
-                           start = if (word.text == "'s" || word.text == "er") 1.dp else 8.dp, // Minimal left padding for suffixes
+                           start = if (word.text == "'s" || word.text == "er" || word.text == "s") 1.dp else 8.dp, // Minimal left padding for suffixes
                            end = 8.dp,
                            top = 6.dp,
                            bottom = 6.dp

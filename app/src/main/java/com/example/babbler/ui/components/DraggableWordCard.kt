@@ -90,7 +90,7 @@ fun DraggableWordCard(
                    contentAlignment = Alignment.Center,
                    modifier = Modifier
                        .padding(
-                           start = if (word.text == "'s" || word.text == "er") 1.dp else 12.dp,
+                           start = if (word.text == "'s" || word.text == "er" || word.text == "s") 1.dp else 12.dp,
                            end = 12.dp,
                            top = 4.dp, // Reduced from 8dp to 4dp for shorter cards
                            bottom = 4.dp
