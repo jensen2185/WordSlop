@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wordslop.model.GameSettings
+import com.example.wordslop.model.GameMode
 import com.example.wordslop.auth.UserInfo
 
 @Composable
@@ -78,7 +79,7 @@ fun CreateGameScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Game Type and Rounds in one row
                 Row(
@@ -101,7 +102,7 @@ fun CreateGameScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Public Game Button
+                            // Public Game Button - Compact
                             Card(
                                 modifier = Modifier
                                     .weight(1f)
@@ -111,27 +112,28 @@ fun CreateGameScreen(
                                 ),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
                                     Text(
                                         text = "🌍",
-                                        fontSize = 18.sp
+                                        fontSize = 14.sp
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Public",
                                         color = Color.White,
                                         fontWeight = FontWeight.Medium,
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp
                                     )
                                 }
                             }
                             
-                            // Private Game Button
+                            // Private Game Button - Compact
                             Card(
                                 modifier = Modifier
                                     .weight(1f)
@@ -141,24 +143,25 @@ fun CreateGameScreen(
                                 ),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
                                     Icon(
                                         Icons.Default.Lock,
                                         contentDescription = "Private",
                                         tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
+                                        modifier = Modifier.size(14.dp)
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Private",
                                         color = Color.White,
                                         fontWeight = FontWeight.Medium,
-                                        fontSize = 12.sp
+                                        fontSize = 11.sp
                                     )
                                 }
                             }
@@ -195,11 +198,11 @@ fun CreateGameScreen(
                                         text = "$rounds",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
+                                        fontSize = 14.sp,
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 12.dp)
+                                            .padding(vertical = 6.dp)
                                     )
                                 }
                             }
@@ -207,6 +210,7 @@ fun CreateGameScreen(
                     }
                 }
                 
+
                 // Passcode for Private Games
                 if (!isPublic) {
                     OutlinedTextField(
@@ -237,7 +241,7 @@ fun CreateGameScreen(
             }
         }
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         // Create Game Button
         Button(
@@ -252,7 +256,8 @@ fun CreateGameScreen(
                     isPublic = isPublic,
                     passcode = if (isPublic) null else passcode,
                     numberOfRounds = numberOfRounds,
-                    maxPlayers = maxPlayers
+                    maxPlayers = maxPlayers,
+                    gameMode = GameMode.ONLINE // All created games are online mode
                 )
                 onGameCreated(gameSettings)
             },

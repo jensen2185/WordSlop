@@ -86,7 +86,7 @@ fun MainMenuScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "WORDSLOP",
+                text = "Word Slop",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -94,7 +94,7 @@ fun MainMenuScreen(
             )
             
             Text(
-                text = "Word Arrangement Game",
+                text = "Get your slop fix",
                 fontSize = 16.sp,
                 color = Color.Gray,
                 textAlign = TextAlign.Center
@@ -228,66 +228,70 @@ fun MainMenuScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.Green.copy(alpha = 0.2f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                                            Text(
+                    // Left side - User info
+                    Column(
+                        horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
                             text = "Welcome back!",
-                            fontSize = 18.sp,
+                            fontSize = 12.sp,
                             color = Color.White,
                             fontWeight = FontWeight.Medium
                         )
                         
                         Text(
                             text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
-                            fontSize = 24.sp,
+                            fontSize = 16.sp,
                             color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
+                            fontWeight = FontWeight.Bold
                         )
                         
                         if (userInfo?.isGuest == true) {
                             Text(
                                 text = "Guest Player",
-                                fontSize = 14.sp,
+                                fontSize = 10.sp,
                                 color = Color(0xFFFF9800),
-                                textAlign = TextAlign.Center,
                                 fontWeight = FontWeight.Medium
                             )
                         } else {
                             userInfo?.email?.let { email ->
                                 Text(
                                     text = email,
-                                    fontSize = 14.sp,
-                                    color = Color.Gray,
-                                    textAlign = TextAlign.Center
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
                                 )
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        OutlinedButton(
-                            onClick = {
-                                if (userInfo?.isGuest != true) {
-                                    authManager.signOut()
-                                }
-                                userInfo = null
-                                errorMessage = null
-                                pendingGoogleUserInfo = null
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                text = "Sign Out",
-                                fontSize = 12.sp
-                            )
-                        }
+                    }
+                    
+                    // Right side - Sign out button
+                    OutlinedButton(
+                        onClick = {
+                            if (userInfo?.isGuest != true) {
+                                authManager.signOut()
+                            }
+                            userInfo = null
+                            errorMessage = null
+                            pendingGoogleUserInfo = null
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "Sign Out",
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
             }

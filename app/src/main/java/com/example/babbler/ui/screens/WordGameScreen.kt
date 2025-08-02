@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.wordslop.model.Word
+import com.example.wordslop.model.GamePlayer
+import com.example.wordslop.model.GameMode
 import com.example.wordslop.repository.WordRepository
 import com.example.wordslop.ui.components.WordCard
 import com.example.wordslop.ui.components.DraggableWordCard
@@ -32,13 +34,6 @@ import com.example.wordslop.ui.components.ArrangementBar
 import com.example.wordslop.ui.components.SelfVoteWarningDialog
 import com.example.wordslop.ui.components.EmojiSelectionDialog
 import kotlin.math.roundToInt
-
-data class Player(
-    val name: String,
-    val isReady: Boolean = false,
-    val selectedWords: List<String> = emptyList(),
-    val points: Int = 0
-)
 
 /**
  * Smart join function that handles special spacing for add-on words.
@@ -87,6 +82,9 @@ enum class GamePhase {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WordGameScreen(
+    gamePlayers: List<GamePlayer>,
+    gameMode: GameMode = GameMode.ONLINE,
+    onBackToLobby: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val wordRepository = remember { WordRepository() }
@@ -113,15 +111,29 @@ fun WordGameScreen(
     var showEmojiDialog by remember { mutableStateOf(false) }
     var selectedSentenceForEmoji by remember { mutableStateOf<Int?>(null) }
     var sentenceEmojis by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
-    var players by remember { 
-        mutableStateOf(listOf(
-            Player("You", false, emptyList()),
-            Player("CPU1", false, emptyList()),
-            Player("CPU2", false, emptyList()),
-            Player("CPU3", false, emptyList()),
-            Player("CPU4", false, emptyList()),
-            Player("CPU5", false, emptyList())
-        )) 
+    
+    // Initialize players based on game mode
+    var players by remember(gamePlayers, gameMode) { 
+        mutableStateOf(
+            if (gameMode == GameMode.TESTING) {
+                // Testing mode: Use provided players but add CPU players if needed
+                val realPlayers = gamePlayers.ifEmpty { 
+                    listOf(GamePlayer("user", "You", false, emptyList(), 0, true))
+                }
+                realPlayers + listOf(
+                    GamePlayer("cpu1", "CPU1", false, emptyList(), 0, false),
+                    GamePlayer("cpu2", "CPU2", false, emptyList(), 0, false),
+                    GamePlayer("cpu3", "CPU3", false, emptyList(), 0, false),
+                    GamePlayer("cpu4", "CPU4", false, emptyList(), 0, false),
+                    GamePlayer("cpu5", "CPU5", false, emptyList(), 0, false)
+                )
+            } else {
+                // Online mode: Use only the provided players
+                gamePlayers.ifEmpty { 
+                    listOf(GamePlayer("user", "You", false, emptyList(), 0, true))
+                }
+            }
+        )
     }
     
     // Helper function for word insertion
@@ -241,14 +253,14 @@ fun WordGameScreen(
         }
     }
     
-    // CPU simulation effect
-    LaunchedEffect(gamePhase) {
-        if (gamePhase == GamePhase.PLAYING) {
+    // CPU simulation effect (only in testing mode)
+    LaunchedEffect(gamePhase, gameMode) {
+        if (gamePhase == GamePhase.PLAYING && gameMode == GameMode.TESTING) {
             // Simulate CPU players selecting words and hitting ready immediately
             kotlinx.coroutines.delay(3000L) // Wait 3 seconds, then all CPUs get ready
             
             players = players.map { player ->
-                if (player.name.startsWith("CPU")) {
+                if (player.username.startsWith("CPU")) {
                     player.copy(
                         isReady = true,
                         selectedWords = gameWords.shuffled().take(3).map { word -> word.text }
@@ -296,7 +308,7 @@ fun WordGameScreen(
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Text(
-                            text = player.name,
+                            text = player.username,
                             color = Color.White,
                             fontSize = 12.sp,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -491,44 +503,60 @@ fun WordGameScreen(
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = {
-                        // Reset game
-                        gameWords = wordRepository.getRandomWords()
-                        specialWords = wordRepository.getSpecialWords()
-                        arrangedWords = emptyList()
-                        timeLeft = 60
-                        votingTimeLeft = 20
-                        resultsTimeLeft = 5
-                        currentRound = 1
-                        gamePhase = GamePhase.PLAYING
-                        userVote = null
-                        sentenceEmojis = emptyMap() // Clear emoji tags for new game
-                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text("New Game")
+                // Only show "New Game" button in testing mode
+                if (gameMode == GameMode.TESTING) {
+                    Button(
+                        onClick = {
+                            // Reset game
+                            gameWords = wordRepository.getRandomWords()
+                            specialWords = wordRepository.getSpecialWords()
+                            arrangedWords = emptyList()
+                            timeLeft = 60
+                            votingTimeLeft = 20
+                            resultsTimeLeft = 5
+                            currentRound = 1
+                            gamePhase = GamePhase.PLAYING
+                            userVote = null
+                            sentenceEmojis = emptyMap() // Clear emoji tags for new game
+                            players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Text("New Game")
+                    }
+                }
+                
+                // Show "Back to Lobby" button in online mode
+                if (gameMode == GameMode.ONLINE && onBackToLobby != null) {
+                    Button(
+                        onClick = onBackToLobby,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Text("Back to Lobby")
+                    }
                 }
 
+                val currentUserPlayer = players.find { it.isCurrentUser }
                 Button(
                     onClick = {
                         // Mark player as ready
                         val playerSentence = arrangedWords.map { it.text }
                         players = players.map { 
-                            if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                            if (it.isCurrentUser) it.copy(isReady = true, selectedWords = playerSentence) 
                             else it 
                         }
                     },
-                    enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
+                    enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && currentUserPlayer?.isReady != true,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF10B981) // Modern green
                     )
                 ) {
                     Text(
-                        text = if (players.first { it.name == "You" }.isReady) "READY!" else "READY",
+                        text = if (currentUserPlayer?.isReady == true) "READY!" else "READY",
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -616,22 +644,22 @@ fun WordGameScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = userVote == null) {
-                                // Check if user is trying to vote for their own sentence
-                                if (player.name == "You") {
-                                    showSelfVoteWarning = true
-                                } else {
-                                    userVote = index
-                                    // Award point to voted player and CPUs vote for user
-                                    players = players.map { p ->
-                                        when {
-                                            p.name == player.name -> p.copy(points = p.points + 1) // User's vote
-                                            p.name == "You" -> p.copy(points = p.points + 3) // CPUs vote for user
-                                            else -> p
-                                        }
+                                                    .clickable(enabled = userVote == null) {
+                            // Check if user is trying to vote for their own sentence
+                            if (player.isCurrentUser) {
+                                showSelfVoteWarning = true
+                            } else {
+                                userVote = index
+                                // Award point to voted player and CPUs vote for user (in testing mode)
+                                players = players.map { p ->
+                                    when {
+                                        p.userId == player.userId -> p.copy(points = p.points + 1) // User's vote
+                                        p.isCurrentUser && gameMode == GameMode.TESTING -> p.copy(points = p.points + 3) // CPUs vote for user in testing
+                                        else -> p
                                     }
                                 }
-                            },
+                            }
+                        },
                         colors = CardDefaults.cardColors(
                             containerColor = if (userVote == index) Color.Green.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.15f)
                         ),
@@ -743,7 +771,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${player.name}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
+                                text = "${player.username}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
@@ -807,7 +835,7 @@ fun WordGameScreen(
                         // Winner's name in grand font
                         val winner = players.maxByOrNull { it.points }
                         Text(
-                            text = winner?.name ?: "Unknown",
+                            text = winner?.username ?: "Unknown",
                             color = Color.White,
                             fontSize = 48.sp,
                             fontWeight = FontWeight.Black,
