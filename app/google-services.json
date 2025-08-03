@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "286066367758-rq91f5e7qfovdf6053fsthouhel4nq72.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wordslop.game",
+            "certificate_hash": "e4f57c89b3301df099d77836b49e40917ce3edf9"
+          }
+        },
+        {
           "client_id": "286066367758-lvs1mmah6ric59brb5opiu7nq9orvag9.apps.googleusercontent.com",
           "client_type": 3
         }

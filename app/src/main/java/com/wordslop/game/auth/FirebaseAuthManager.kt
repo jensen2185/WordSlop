@@ -10,6 +10,7 @@ import com.google.android.gms.auth.api.identity.SignInClient
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.wordslop.game.R
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -35,8 +36,8 @@ class FirebaseAuthManager(private val context: Context) {
                 .setGoogleIdTokenRequestOptions(
                     BeginSignInRequest.GoogleIdTokenRequestOptions.builder()
                         .setSupported(true)
-                        // Web client ID from Firebase console
-                        .setServerClientId("101946411201-plec3ah1r34n05hm2adgkatbom1foe19.apps.googleusercontent.com")
+                        // Web client ID from Firebase console (auto-generated from google-services.json)
+                        .setServerClientId(context.getString(R.string.default_web_client_id))
                         .setFilterByAuthorizedAccounts(false)
                         .build()
                 )
