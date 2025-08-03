@@ -86,7 +86,7 @@ fun MainMenuScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Word Slop",
+                text = "WORD SLOP",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -220,7 +220,7 @@ fun MainMenuScreen(
                 }
             }
             } else {
-                // Welcome back section
+                // Welcome back section - compact horizontal layout
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -228,72 +228,73 @@ fun MainMenuScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.Green.copy(alpha = 0.2f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Left side - User info
-                    Column(
-                        horizontalAlignment = Alignment.Start,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Welcome back!",
-                            fontSize = 12.sp,
-                            color = Color.White,
-                            fontWeight = FontWeight.Medium
-                        )
-                        
-                        Text(
-                            text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
-                            fontSize = 16.sp,
-                            color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
-                            fontWeight = FontWeight.Bold
-                        )
-                        
-                        if (userInfo?.isGuest == true) {
+                        // Left side - User info
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.Start
+                        ) {
                             Text(
-                                text = "Guest Player",
-                                fontSize = 10.sp,
-                                color = Color(0xFFFF9800),
+                                text = "Welcome back!",
+                                fontSize = 14.sp,
+                                color = Color.White,
                                 fontWeight = FontWeight.Medium
                             )
-                        } else {
-                            userInfo?.email?.let { email ->
+                            
+                            Text(
+                                text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
+                                fontSize = 18.sp,
+                                color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
+                                fontWeight = FontWeight.Bold
+                            )
+                            
+                            if (userInfo?.isGuest == true) {
                                 Text(
-                                    text = email,
-                                    fontSize = 10.sp,
-                                    color = Color.Gray
+                                    text = "Guest Player",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFFF9800),
+                                    fontWeight = FontWeight.Medium
                                 )
+                            } else {
+                                userInfo?.email?.let { email ->
+                                    Text(
+                                        text = email,
+                                        fontSize = 12.sp,
+                                        color = Color.Gray
+                                    )
+                                }
                             }
                         }
-                    }
-                    
-                    // Right side - Sign out button
-                    OutlinedButton(
-                        onClick = {
-                            if (userInfo?.isGuest != true) {
-                                authManager.signOut()
-                            }
-                            userInfo = null
-                            errorMessage = null
-                            pendingGoogleUserInfo = null
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            text = "Sign Out",
-                            fontSize = 10.sp
-                        )
+                        
+                        // Right side - Sign out button
+                        OutlinedButton(
+                            onClick = {
+                                if (userInfo?.isGuest != true) {
+                                    authManager.signOut()
+                                }
+                                userInfo = null
+                                errorMessage = null
+                                pendingGoogleUserInfo = null
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(
+                                text = "Sign Out",
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
-            }
             }
             
             Spacer(modifier = Modifier.height(16.dp))

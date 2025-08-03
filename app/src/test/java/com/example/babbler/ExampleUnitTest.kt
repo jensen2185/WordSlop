@@ -1,4 +1,4 @@
-package com.example.wordslop
+package com.wordslop.game
 
 import org.junit.Test
 

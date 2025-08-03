@@ -1,14 +1,6 @@
 package com.wordslop.game.model
 
 /**
- * Game mode enumeration
- */
-enum class GameMode {
-    TESTING,    // Testing mode with CPU players
-    ONLINE      // Online multiplayer mode with real players only
-}
-
-/**
  * Represents a game lobby where players wait before starting
  */
 data class GameLobby(
@@ -37,6 +29,14 @@ data class LobbyPlayer(
 )
 
 /**
+ * Game mode enumeration
+ */
+enum class GameMode {
+    ONLINE,     // Online multiplayer game
+    TESTING     // Testing/practice mode
+}
+
+/**
  * Game status enumeration
  */
 enum class GameStatus {
@@ -55,16 +55,4 @@ data class GameSettings(
     val numberOfRounds: Int = 3,
     val maxPlayers: Int = 6,
     val gameMode: GameMode = GameMode.ONLINE
-)
-
-/**
- * Represents a player in the actual word game (converted from LobbyPlayer)
- */
-data class GamePlayer(
-    val userId: String,
-    val username: String,
-    val isReady: Boolean = false,
-    val selectedWords: List<String> = emptyList(),
-    val points: Int = 0,
-    val isCurrentUser: Boolean = false
 )

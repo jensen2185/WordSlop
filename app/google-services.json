@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "286066367758-medm0g865tds6o6nvk1hk3i7oref73hc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wordslop.game",
+            "certificate_hash": "739f521018e6aa1253d5b52ecd559f1942e70e92"
+          }
+        },
+        {
           "client_id": "286066367758-lvs1mmah6ric59brb5opiu7nq9orvag9.apps.googleusercontent.com",
           "client_type": 3
         }
