@@ -243,7 +243,13 @@ fun WordGameScreen(
                         )
                     }
                 } else {
-                    // Game finished - show winner
+                    // Game finished - transfer final round points and show winner
+                    players = players.map { 
+                        it.copy(
+                            points = it.points + it.currentRoundPoints, // Transfer final round points to total
+                            currentRoundPoints = 0 // Reset round points
+                        )
+                    }
                     gamePhase = GamePhase.WINNER
                 }
             }
