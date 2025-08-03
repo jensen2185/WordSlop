@@ -1,45 +1,36 @@
 {
   "project_info": {
-    "project_number": "101946411201",
-    "project_id": "warriors-5fa9b2e5",
-    "storage_bucket": "warriors-5fa9b2e5.firebasestorage.app"
+    "project_number": "286066367758",
+    "project_id": "word-slop",
+    "storage_bucket": "word-slop.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:101946411201:android:ba6a41109f47250ee86c40",
+        "mobilesdk_app_id": "1:286066367758:android:0a466f4963d30b38bf4b5f",
         "android_client_info": {
-          "package_name": "com.example.warriors"
+          "package_name": "com.wordslop.game"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "286066367758-lvs1mmah6ric59brb5opiu7nq9orvag9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCSwBwUrv8kIquGwbjhkJXJEnOxoRcWLNw"
+          "current_key": "AIzaSyA_addx6Mg5CuQvfdeQ7zT2LhMxi8FK8v4"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:101946411201:android:25a404f05b03e92ae86c40",
-        "android_client_info": {
-          "package_name": "com.example.wordslop"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCSwBwUrv8kIquGwbjhkJXJEnOxoRcWLNw"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "286066367758-lvs1mmah6ric59brb5opiu7nq9orvag9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

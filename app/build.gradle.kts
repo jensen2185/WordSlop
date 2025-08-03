@@ -6,17 +6,26 @@ plugins {
 }
 
 android {
-    namespace = "com.example.wordslop"
+    namespace = "com.wordslop.game"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.wordslop"
+        applicationId = "com.wordslop.game"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("../upload.jks")
+            storePassword = System.getenv("UPLOAD_STORE_PASSWORD") ?: "jlhjlh"
+            keyAlias = "upload"
+            keyPassword = System.getenv("UPLOAD_KEY_PASSWORD") ?: "jlhjlh"
+        }
     }
 
     buildTypes {
@@ -26,6 +35,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {

@@ -13,7 +13,6 @@ data class GameLobby(
     val numberOfRounds: Int = 3,
     val players: List<LobbyPlayer> = emptyList(),
     val gameStatus: GameStatus = GameStatus.WAITING,
-    val gameMode: GameMode = GameMode.ONLINE,
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -27,14 +26,6 @@ data class LobbyPlayer(
     val isHost: Boolean = false,
     val joinedAt: Long = System.currentTimeMillis()
 )
-
-/**
- * Game mode enumeration
- */
-enum class GameMode {
-    TESTING,    // Testing mode with CPU players
-    ONLINE      // Online multiplayer mode with real players only
-}
 
 /**
  * Game status enumeration
@@ -53,6 +44,5 @@ data class GameSettings(
     val isPublic: Boolean = true,
     val passcode: String? = null,
     val numberOfRounds: Int = 3,
-    val maxPlayers: Int = 6,
-    val gameMode: GameMode = GameMode.ONLINE
+    val maxPlayers: Int = 6
 )
