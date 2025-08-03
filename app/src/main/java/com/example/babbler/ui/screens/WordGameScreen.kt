@@ -37,7 +37,8 @@ data class Player(
     val name: String,
     val isReady: Boolean = false,
     val selectedWords: List<String> = emptyList(),
-    val points: Int = 0
+    val points: Int = 0,
+    val currentRoundPoints: Int = 0
 )
 
 /**
@@ -87,7 +88,8 @@ enum class GamePhase {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WordGameScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBackToMainMenu: (() -> Unit)? = null
 ) {
     val wordRepository = remember { WordRepository() }
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
@@ -232,7 +234,14 @@ fun WordGameScreen(
                     gamePhase = GamePhase.PLAYING
                     userVote = null
                     sentenceEmojis = emptyMap() // Clear emoji tags for new round
-                    players = players.map { it.copy(isReady = false, selectedWords = emptyList()) }
+                    players = players.map { 
+                        it.copy(
+                            isReady = false, 
+                            selectedWords = emptyList(),
+                            points = it.points + it.currentRoundPoints, // Transfer round points to total
+                            currentRoundPoints = 0 // Reset round points
+                        )
+                    }
                 } else {
                     // Game finished - show winner
                     gamePhase = GamePhase.WINNER
@@ -493,24 +502,13 @@ fun WordGameScreen(
             ) {
                 Button(
                     onClick = {
-                        // Reset game
-                        gameWords = wordRepository.getRandomWords()
-                        specialWords = wordRepository.getSpecialWords()
-                        arrangedWords = emptyList()
-                        timeLeft = 60
-                        votingTimeLeft = 20
-                        resultsTimeLeft = 5
-                        currentRound = 1
-                        gamePhase = GamePhase.PLAYING
-                        userVote = null
-                        sentenceEmojis = emptyMap() // Clear emoji tags for new game
-                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
+                        onBackToMainMenu?.invoke()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondary
                     )
                 ) {
-                    Text("New Game")
+                    Text("Main Menu")
                 }
 
                 Button(
@@ -585,7 +583,7 @@ fun WordGameScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Vote for the Best Sentence",
+                        text = "Vote for the best one",
                         color = Color.White,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
@@ -607,12 +605,15 @@ fun WordGameScreen(
                     }
                 }
                 
-                // Anonymous sentences - compact layout
-                val sentencesWithIndex = players.filter { it.selectedWords.isNotEmpty() }.mapIndexed { index, player -> 
-                    index to player 
+                // Anonymous sentences - compact layout with randomized order (shuffled once)
+                val playersWithSentences = players.filter { it.selectedWords.isNotEmpty() }
+                val randomizedPlayersWithIndex = remember(gamePhase, currentRound) { 
+                    playersWithSentences.shuffled().mapIndexed { index, player -> 
+                        index to player 
+                    }
                 }
                 
-                sentencesWithIndex.forEach { (index, player) ->
+                randomizedPlayersWithIndex.forEach { (index, player) ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -625,8 +626,8 @@ fun WordGameScreen(
                                     // Award point to voted player and CPUs vote for user
                                     players = players.map { p ->
                                         when {
-                                            p.name == player.name -> p.copy(points = p.points + 1) // User's vote
-                                            p.name == "You" -> p.copy(points = p.points + 3) // CPUs vote for user
+                                            p.name == player.name -> p.copy(currentRoundPoints = p.currentRoundPoints + 1) // User's vote
+                                            p.name == "You" -> p.copy(currentRoundPoints = p.currentRoundPoints + 3) // CPUs vote for user
                                             else -> p
                                         }
                                     }
@@ -714,8 +715,11 @@ fun WordGameScreen(
                     }
                 }
                 
-                // Show all sentences with authors and points - compact layout
-                players.filter { it.selectedWords.isNotEmpty() }.forEachIndexed { index, player ->
+                // Show all sentences sorted by current round points (highest first)
+                val playersWithSentences = players.filter { it.selectedWords.isNotEmpty() }
+                val sortedPlayers = playersWithSentences.sortedByDescending { it.currentRoundPoints }
+                
+                sortedPlayers.forEachIndexed { index, player ->
                     val sentenceEmoji = sentenceEmojis[index]
                     
                     Card(
@@ -743,20 +747,44 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${player.name}: ${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
+                                text = "${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
                                 modifier = Modifier.weight(1f)
                             )
                             
-                            if (player.points > 0) {
+                            // Username and points on the right side
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
-                                    text = "+${player.points}",
-                                    color = Color.Green,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = player.name,
+                                    color = Color.Gray,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
+                                
+                                // Previous points in yellow (if any)
+                                if (player.points > 0) {
+                                    Text(
+                                        text = "${player.points}",
+                                        color = Color.Yellow,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                
+                                // Current round points in green with +
+                                if (player.currentRoundPoints > 0) {
+                                    Text(
+                                        text = "+${player.currentRoundPoints}",
+                                        color = Color.Green,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
@@ -846,7 +874,7 @@ fun WordGameScreen(
                         gamePhase = GamePhase.PLAYING
                         userVote = null
                         sentenceEmojis = emptyMap() // Clear emoji tags for new game
-                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0) }
+                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0, currentRoundPoints = 0) }
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF10B981)

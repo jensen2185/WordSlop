@@ -1,4 +1,4 @@
-package com.example.wordslop
+package com.wordslop.game
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,16 +21,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.example.wordslop.ui.screens.MainMenuScreen
-import com.example.wordslop.ui.screens.CreateGameScreen
-import com.example.wordslop.ui.screens.GameLobbyScreen
-import com.example.wordslop.ui.screens.WordGameScreen
-import com.example.wordslop.ui.screens.JoinGameScreen
-import com.example.wordslop.model.GameLobby
-import com.example.wordslop.model.LobbyPlayer
-import com.example.wordslop.model.GameSettings
-import com.example.wordslop.model.GameStatus
-import com.example.wordslop.auth.UserInfo
+import com.wordslop.game.ui.screens.MainMenuScreen
+import com.wordslop.game.ui.screens.CreateGameScreen
+import com.wordslop.game.ui.screens.GameLobbyScreen
+import com.wordslop.game.ui.screens.WordGameScreen
+import com.wordslop.game.ui.screens.JoinGameScreen
+import com.wordslop.game.model.GameLobby
+import com.wordslop.game.model.LobbyPlayer
+import com.wordslop.game.model.GameSettings
+import com.wordslop.game.model.GameStatus
+import com.wordslop.game.model.GameMode
+import com.wordslop.game.model.GamePlayer
+import com.wordslop.game.auth.UserInfo
 
 sealed class Screen {
     object MainMenu : Screen()
@@ -83,6 +85,26 @@ fun WordslopApp() {
                     },
                     onPracticeMode = { user ->
                         currentUser = user
+                        // Create a testing game lobby for practice mode
+                        val practiceGameLobby = GameLobby(
+                            gameId = "practice_${System.currentTimeMillis()}",
+                            hostUserId = user.userId,
+                            hostUsername = user.gameUsername ?: user.displayName,
+                            isPublic = false,
+                            maxPlayers = 6,
+                            numberOfRounds = 3,
+                            players = listOf(
+                                LobbyPlayer(
+                                    userId = user.userId,
+                                    username = user.gameUsername ?: user.displayName,
+                                    isReady = false,
+                                    isHost = true
+                                )
+                            ),
+                            gameStatus = GameStatus.IN_PROGRESS,
+                            gameMode = GameMode.TESTING
+                        )
+                        currentGameLobby = practiceGameLobby
                         currentScreen = Screen.WordGame
                     }
                 )
@@ -147,16 +169,16 @@ fun WordslopApp() {
                                 maxPlayers = gameSettings.maxPlayers,
                                 numberOfRounds = gameSettings.numberOfRounds,
                                 players = listOf(hostPlayer),
-                                gameStatus = GameStatus.WAITING
+                                gameStatus = GameStatus.WAITING,
+                                gameMode = gameSettings.gameMode
                             )
                             
-                            currentGameLobby = newLobby
-                            
-                            // Add to active lobbies if it's public
+                            // Add to active lobbies list if it's public
                             if (gameSettings.isPublic) {
                                 activePublicLobbies = activePublicLobbies + newLobby
                             }
                             
+                            currentGameLobby = newLobby
                             currentScreen = Screen.GameLobby
                         },
                         onBack = { currentScreen = Screen.MainMenu },
@@ -175,46 +197,21 @@ fun WordslopApp() {
                             gameLobby = gameLobby,
                             currentUser = user,
                             onBack = { 
-                                // Remove current user from the lobby
-                                val remainingPlayers = gameLobby.players.filter { it.userId != user.userId }
-                                
-                                if (remainingPlayers.isEmpty()) {
-                                    // Delete lobby if no players remain
-                                    if (gameLobby.isPublic) {
-                                        activePublicLobbies = activePublicLobbies.filter { it.gameId != gameLobby.gameId }
-                                    }
-                                } else {
-                                    // Keep lobby alive with remaining players
-                                    val updatedLobby = gameLobby.copy(
-                                        players = remainingPlayers.mapIndexed { index, player ->
-                                            // Assign host to first remaining player if current host is leaving
-                                            if (gameLobby.hostUserId == user.userId && index == 0) {
-                                                player.copy(isHost = true)
-                                            } else {
-                                                player
-                                            }
-                                        },
-                                        // Update host info if needed
-                                        hostUserId = if (gameLobby.hostUserId == user.userId) {
-                                            remainingPlayers.firstOrNull()?.userId ?: gameLobby.hostUserId
-                                        } else {
-                                            gameLobby.hostUserId
-                                        },
-                                        hostUsername = if (gameLobby.hostUserId == user.userId) {
-                                            remainingPlayers.firstOrNull()?.username ?: gameLobby.hostUsername
-                                        } else {
-                                            gameLobby.hostUsername
-                                        }
-                                    )
-                                    
-                                    // Update the lobby in active lobbies list if it's public
-                                    if (gameLobby.isPublic) {
-                                        activePublicLobbies = activePublicLobbies.map { lobby ->
-                                            if (lobby.gameId == gameLobby.gameId) updatedLobby else lobby
+                                // Remove from active lobbies if leaving as host, or remove self if not host
+                                currentGameLobby?.let { lobby ->
+                                    if (lobby.hostUserId == user.userId) {
+                                        // Host is leaving - remove entire lobby
+                                        activePublicLobbies = activePublicLobbies.filter { it.gameId != lobby.gameId }
+                                    } else {
+                                        // Non-host leaving - remove player from lobby
+                                        val updatedLobby = lobby.copy(
+                                            players = lobby.players.filter { it.userId != user.userId }
+                                        )
+                                        activePublicLobbies = activePublicLobbies.map { 
+                                            if (it.gameId == lobby.gameId) updatedLobby else it
                                         }
                                     }
                                 }
-                                
                                 currentGameLobby = null
                                 currentScreen = Screen.MainMenu 
                             },
@@ -228,9 +225,8 @@ fun WordslopApp() {
                                     }
                                 )
                                 
+                                // Update both current lobby and active lobbies list
                                 currentGameLobby = updatedLobby
-                                
-                                // Update the lobby in active lobbies list if it's public
                                 if (gameLobby.isPublic) {
                                     activePublicLobbies = activePublicLobbies.map { lobby ->
                                         if (lobby.gameId == gameLobby.gameId) updatedLobby else lobby
@@ -238,6 +234,10 @@ fun WordslopApp() {
                                 }
                             },
                             onStartGame = {
+                                // Remove from active lobbies when game starts
+                                currentGameLobby?.let { lobby ->
+                                    activePublicLobbies = activePublicLobbies.filter { it.gameId != lobby.gameId }
+                                }
                                 currentScreen = Screen.WordGame
                             },
                             modifier = Modifier.padding(innerPadding)
@@ -250,12 +250,35 @@ fun WordslopApp() {
             }
             
             Screen.WordGame -> {
-                WordGameScreen(
-                    modifier = Modifier.padding(innerPadding),
-                    onBackToMainMenu = {
-                        currentScreen = Screen.MainMenu
+                currentGameLobby?.let { gameLobby ->
+                    currentUser?.let { user ->
+                        // Convert lobby players to game players
+                        val gamePlayers = gameLobby.players.map { lobbyPlayer ->
+                            GamePlayer(
+                                userId = lobbyPlayer.userId,
+                                username = lobbyPlayer.username,
+                                isReady = false,
+                                selectedWords = emptyList(),
+                                points = 0,
+                                isCurrentUser = lobbyPlayer.userId == user.userId
+                            )
+                        }
+                        
+                        WordGameScreen(
+                            gamePlayers = gamePlayers,
+                            gameMode = gameLobby.gameMode,
+                            onBackToLobby = if (gameLobby.gameMode == GameMode.ONLINE) {
+                                {
+                                    currentScreen = Screen.GameLobby
+                                }
+                            } else null,
+                            modifier = Modifier.padding(innerPadding)
+                        )
                     }
-                )
+                } ?: run {
+                    // No game lobby, go back to main menu
+                    currentScreen = Screen.MainMenu
+                }
             }
         }
     }

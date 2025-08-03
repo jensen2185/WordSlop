@@ -1,0 +1,17 @@
+[33mcommit 9d989ef25aa6e50d09fdc3be1c2ccc5a0ae61458[m[33m ([m[1;31morigin/detached[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmaster[m[33m)[m
+Author: jensen <jensen2185@gmail.com>
+Date:   Sat Aug 2 13:32:06 2025 -0700
+
+    Basic babbler 4.9 fixed game lobby layouts, added emojis
+
+.idea/appInsightsSettings.xml
+app/build.gradle.kts
+app/google-services.json
+app/src/main/java/com/example/babbler/MainActivity.kt
+app/src/main/java/com/example/babbler/model/GameModels.kt
+app/src/main/java/com/example/babbler/ui/screens/CreateGameScreen.kt
+app/src/main/java/com/example/babbler/ui/screens/JoinGameScreen.kt
+app/src/main/java/com/example/babbler/ui/screens/MainMenuScreen.kt
+app/src/main/java/com/example/babbler/ui/screens/WordGameScreen.kt
+upload.jks
+upload_certificate.pem

@@ -1,4 +1,4 @@
-package com.example.wordslop.ui.screens
+package com.wordslop.game.ui.screens
 
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -18,12 +18,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.wordslop.auth.AuthResult
-import com.example.wordslop.auth.FirebaseAuthManager
-import com.example.wordslop.auth.UserInfo
-import com.example.wordslop.auth.createGuestUser
-import com.example.wordslop.ui.components.UsernameSelectionDialog
-import com.example.wordslop.ui.components.GuestLoginDialog
+import com.wordslop.game.auth.AuthResult
+import com.wordslop.game.auth.FirebaseAuthManager
+import com.wordslop.game.auth.UserInfo
+import com.wordslop.game.auth.createGuestUser
+import com.wordslop.game.ui.components.UsernameSelectionDialog
+import com.wordslop.game.ui.components.GuestLoginDialog
 import kotlinx.coroutines.launch
 
 @Composable
@@ -86,7 +86,7 @@ fun MainMenuScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "WORD SLOP",
+                text = "Word Slop",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -220,7 +220,7 @@ fun MainMenuScreen(
                 }
             }
             } else {
-                // Welcome back section - compact horizontal layout
+                // Welcome back section
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -228,73 +228,72 @@ fun MainMenuScreen(
                     colors = CardDefaults.cardColors(containerColor = Color.Green.copy(alpha = 0.2f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Left side - User info
+                    Column(
+                        horizontalAlignment = Alignment.Start,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        // Left side - User info
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            horizontalAlignment = Alignment.Start
-                        ) {
+                        Text(
+                            text = "Welcome back!",
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium
+                        )
+                        
+                        Text(
+                            text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
+                            fontSize = 16.sp,
+                            color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        if (userInfo?.isGuest == true) {
                             Text(
-                                text = "Welcome back!",
-                                fontSize = 14.sp,
-                                color = Color.White,
+                                text = "Guest Player",
+                                fontSize = 10.sp,
+                                color = Color(0xFFFF9800),
                                 fontWeight = FontWeight.Medium
                             )
-                            
-                            Text(
-                                text = userInfo?.gameUsername ?: userInfo?.displayName ?: "Unknown User",
-                                fontSize = 18.sp,
-                                color = if (userInfo?.isGuest == true) Color(0xFFFF9800) else Color.Green,
-                                fontWeight = FontWeight.Bold
-                            )
-                            
-                            if (userInfo?.isGuest == true) {
+                        } else {
+                            userInfo?.email?.let { email ->
                                 Text(
-                                    text = "Guest Player",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFFF9800),
-                                    fontWeight = FontWeight.Medium
+                                    text = email,
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
                                 )
-                            } else {
-                                userInfo?.email?.let { email ->
-                                    Text(
-                                        text = email,
-                                        fontSize = 12.sp,
-                                        color = Color.Gray
-                                    )
-                                }
                             }
                         }
-                        
-                        // Right side - Sign out button
-                        OutlinedButton(
-                            onClick = {
-                                if (userInfo?.isGuest != true) {
-                                    authManager.signOut()
-                                }
-                                userInfo = null
-                                errorMessage = null
-                                pendingGoogleUserInfo = null
-                            },
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.height(32.dp)
-                        ) {
-                            Text(
-                                text = "Sign Out",
-                                fontSize = 10.sp
-                            )
-                        }
+                    }
+                    
+                    // Right side - Sign out button
+                    OutlinedButton(
+                        onClick = {
+                            if (userInfo?.isGuest != true) {
+                                authManager.signOut()
+                            }
+                            userInfo = null
+                            errorMessage = null
+                            pendingGoogleUserInfo = null
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "Sign Out",
+                            fontSize = 10.sp
+                        )
                     }
                 }
+            }
             }
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -378,7 +377,7 @@ fun MainMenuScreen(
             UsernameSelectionDialog(
                 defaultUsername = googleAuth.displayName.split(" ").firstOrNull() ?: "Player",
                 onUsernameConfirmed = { customUsername ->
-                    userInfo = com.example.wordslop.auth.UserInfo(
+                    userInfo = com.wordslop.game.auth.UserInfo(
                         userId = googleAuth.userId,
                         displayName = googleAuth.displayName,
                         email = googleAuth.email,
