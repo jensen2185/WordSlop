@@ -33,11 +33,14 @@ import com.wordslop.game.ui.components.ArrangementBar
 import com.wordslop.game.ui.components.SelfVoteWarningDialog
 import com.wordslop.game.ui.components.EmojiSelectionDialog
 import com.wordslop.game.model.GameLobby
+import com.wordslop.game.model.GameStatus
 import com.wordslop.game.auth.UserInfo
 import com.wordslop.game.repository.LobbyRepository
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 data class Player(
     val name: String,
@@ -100,7 +103,7 @@ fun WordGameScreen(
     onBackToMainMenu: (() -> Unit)? = null
 ) {
     val wordRepository = remember { WordRepository() }
-    val lobbyRepository = remember { LobbyRepository() }
+    val lobbyRepository = if (gameLobby != null && currentUser != null && !currentUser.isGuest) remember { LobbyRepository() } else null
     val scope = rememberCoroutineScope()
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
     var specialWords by remember { mutableStateOf(wordRepository.getSpecialWords()) }
@@ -232,7 +235,7 @@ fun WordGameScreen(
                 votingTimeLeft--
                 
                 // In multiplayer mode, check if all players have voted
-                if (gameLobby != null && currentUser != null) {
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                     val votingResult = lobbyRepository.getVotingResults(gameLobby.gameId)
                     votingResult.onSuccess { votes ->
                         // Check if all players have voted (number of votes equals number of players)
@@ -262,44 +265,206 @@ fun WordGameScreen(
             
             // Auto-proceed after 5 seconds
             if (resultsTimeLeft <= 0) {
-                if (currentRound < totalRounds) {
-                    // Go to next round - simple approach
-                    currentRound++
-                    gameWords = wordRepository.getRandomWords()
-                    specialWords = wordRepository.getSpecialWords()
-                    arrangedWords = emptyList()
-                    timeLeft = 60
-                    votingTimeLeft = 20
-                    resultsTimeLeft = 5
-                    gamePhase = GamePhase.PLAYING
-                    userVote = null
-                    sentenceEmojis = emptyMap()
-                    players = players.map { 
-                        it.copy(
-                            isReady = false, 
-                            selectedWords = emptyList(),
-                            points = it.points + it.currentRoundPoints,
-                            currentRoundPoints = 0
-                        )
-                    }
-                    
-                    // Clear voting data for multiplayer mode (fire and forget)
-                    if (gameLobby != null && currentUser != null) {
-                        scope.launch {
-                            lobbyRepository.clearVotingData(gameLobby.gameId)
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                    // Multiplayer mode - only host controls round transitions
+                    val isHost = gameLobby.players.find { it.userId == currentUser.userId }?.isHost == true
+                    if (isHost) {
+                        // Host sends signals to non-hosts but doesn't advance locally here
+                        // (local advancement happens in the round signal monitoring section)
+                        if (currentRound < totalRounds) {
+                            scope.launch {
+                                println("DEBUG HOST: Host signaling next round ${currentRound + 1}")
+                                // Clear old voting data first
+                                lobbyRepository.clearVotingData(gameLobby.gameId)
+                                
+                                // Signal next round to non-host players
+                                val roundSignal = mapOf(
+                                    "action" to "next_round",
+                                    "round" to (currentRound + 1),
+                                    "timestamp" to System.currentTimeMillis()
+                                )
+                                
+                                try {
+                                    FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).set(roundSignal).await()
+                                    println("DEBUG HOST: Successfully sent next round signal")
+                                } catch (e: Exception) {
+                                    println("DEBUG HOST: Failed to send signal: ${e.message}")
+                                    // Fallback: advance locally if Firebase fails
+                                    currentRound++
+                                    gameWords = wordRepository.getRandomWords()
+                                    specialWords = wordRepository.getSpecialWords()
+                                    arrangedWords = emptyList()
+                                    timeLeft = 60
+                                    votingTimeLeft = 20
+                                    resultsTimeLeft = 5
+                                    gamePhase = GamePhase.PLAYING
+                                    userVote = null
+                                    sentenceEmojis = emptyMap()
+                                    players = players.map { 
+                                        it.copy(
+                                            isReady = false, 
+                                            selectedWords = emptyList(),
+                                            points = it.points + it.currentRoundPoints,
+                                            currentRoundPoints = 0
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            scope.launch {
+                                println("DEBUG HOST: Host signaling game end")
+                                val roundSignal = mapOf(
+                                    "action" to "end_game",
+                                    "timestamp" to System.currentTimeMillis()
+                                )
+                                
+                                try {
+                                    FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).set(roundSignal).await()
+                                    println("DEBUG HOST: Successfully sent game end signal")
+                                } catch (e: Exception) {
+                                    println("DEBUG HOST: Failed to send signal: ${e.message}")
+                                    // Fallback: end game locally if Firebase fails
+                                    players = players.map { 
+                                        it.copy(
+                                            points = it.points + it.currentRoundPoints,
+                                            currentRoundPoints = 0
+                                        )
+                                    }
+                                    gamePhase = GamePhase.WINNER
+                                }
+                            }
                         }
                     }
+                    // Non-host players wait for lobby status changes to sync their state (handled by lobby status monitoring)
                 } else {
-                    // Game finished - transfer final round points and show winner
-                    players = players.map { 
-                        it.copy(
-                            points = it.points + it.currentRoundPoints, // Transfer final round points to total
-                            currentRoundPoints = 0 // Reset round points
-                        )
+                    // Practice mode - local round advancement
+                    if (currentRound < totalRounds) {
+                        // Go to next round - simple approach
+                        currentRound++
+                        gameWords = wordRepository.getRandomWords()
+                        specialWords = wordRepository.getSpecialWords()
+                        arrangedWords = emptyList()
+                        timeLeft = 60
+                        votingTimeLeft = 20
+                        resultsTimeLeft = 5
+                        gamePhase = GamePhase.PLAYING
+                        userVote = null
+                        sentenceEmojis = emptyMap()
+                        players = players.map { 
+                            it.copy(
+                                isReady = false, 
+                                selectedWords = emptyList(),
+                                points = it.points + it.currentRoundPoints,
+                                currentRoundPoints = 0
+                            )
+                        }
+                    } else {
+                        // Game finished - transfer final round points and show winner
+                        players = players.map { 
+                            it.copy(
+                                points = it.points + it.currentRoundPoints, // Transfer final round points to total
+                                currentRoundPoints = 0 // Reset round points
+                            )
+                        }
+                        gamePhase = GamePhase.WINNER
                     }
-                    gamePhase = GamePhase.WINNER
                 }
             }
+        }
+    }
+    
+    // Round signal monitoring for multiplayer round transitions (both host and non-host players)
+    if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+        val isHost = gameLobby.players.find { it.userId == currentUser.userId }?.isHost == true
+        
+        // Both host and non-host players listen for round signals (host listens to its own signals)
+        var lastProcessedSignal by remember { mutableStateOf<Long>(0L) }
+        
+        LaunchedEffect(gameLobby.gameId) {
+            println("DEBUG SIGNAL: Setting up round signal listener for lobby ${gameLobby.gameId}")
+            
+            // Monitor round signals from host
+            FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        println("DEBUG SIGNAL: Error listening for round signals: ${error.message}")
+                        return@addSnapshotListener
+                    }
+                    
+                    val playerType = if (isHost) "HOST" else "NON-HOST"
+                    println("DEBUG SIGNAL $playerType: Snapshot received - exists: ${snapshot?.exists()}")
+                    
+                    if (snapshot?.exists() == true) {
+                        val data = snapshot.data
+                        println("DEBUG SIGNAL $playerType: Document data: $data")
+                        
+                        val action = snapshot.getString("action")
+                        val round = snapshot.getLong("round")?.toInt()
+                        val timestamp = snapshot.getLong("timestamp") ?: 0L
+                        
+                        println("DEBUG SIGNAL $playerType: action=$action, round=$round, timestamp=$timestamp, lastProcessed=$lastProcessedSignal")
+                        println("DEBUG SIGNAL $playerType: currentPhase=$gamePhase, currentRound=$currentRound")
+                        
+                        // Only process each signal once (avoid duplicates)
+                        if (timestamp > lastProcessedSignal) {
+                            lastProcessedSignal = timestamp
+                            println("DEBUG SIGNAL $playerType: Processing signal...")
+                            
+                            when (action) {
+                                "next_round" -> {
+                                    if (gamePhase == GamePhase.RESULTS && round != null) {
+                                        println("DEBUG SIGNAL $playerType: Advancing to next round ($round)")
+                                        
+                                        // Advance to next round
+                                        currentRound = round
+                                        gameWords = wordRepository.getRandomWords()
+                                        specialWords = wordRepository.getSpecialWords()
+                                        arrangedWords = emptyList()
+                                        timeLeft = 60
+                                        votingTimeLeft = 20
+                                        resultsTimeLeft = 5
+                                        gamePhase = GamePhase.PLAYING
+                                        userVote = null
+                                        sentenceEmojis = emptyMap()
+                                        players = players.map { 
+                                            it.copy(
+                                                isReady = false, 
+                                                selectedWords = emptyList(),
+                                                points = it.points + it.currentRoundPoints,
+                                                currentRoundPoints = 0
+                                            )
+                                        }
+                                        println("DEBUG SIGNAL $playerType: Successfully advanced to round $round")
+                                    } else {
+                                        println("DEBUG SIGNAL $playerType: Skipping next_round - wrong phase ($gamePhase) or null round")
+                                    }
+                                }
+                                "end_game" -> {
+                                    if (gamePhase == GamePhase.RESULTS) {
+                                        println("DEBUG SIGNAL $playerType: Ending game")
+                                        players = players.map { 
+                                            it.copy(
+                                                points = it.points + it.currentRoundPoints,
+                                                currentRoundPoints = 0
+                                            )
+                                        }
+                                        gamePhase = GamePhase.WINNER
+                                        println("DEBUG SIGNAL $playerType: Successfully ended game")
+                                    } else {
+                                        println("DEBUG SIGNAL $playerType: Skipping end_game - wrong phase ($gamePhase)")
+                                    }
+                                }
+                                else -> {
+                                    println("DEBUG SIGNAL $playerType: Unknown action: $action")
+                                }
+                            }
+                        } else {
+                            println("DEBUG SIGNAL $playerType: Skipping signal - already processed (timestamp=$timestamp <= lastProcessed=$lastProcessedSignal)")
+                        }
+                    } else {
+                        println("DEBUG SIGNAL $playerType: Document does not exist")
+                    }
+                }
         }
     }
     
@@ -321,7 +486,7 @@ fun WordGameScreen(
     }
     
     // Multiplayer ready status sync (only in multiplayer mode)
-    if (gameLobby != null && currentUser != null) {
+    if (gameLobby != null && currentUser != null && lobbyRepository != null) {
         val updatedLobby by lobbyRepository.getLobbyFlow(gameLobby.gameId).collectAsState(initial = gameLobby)
         
         // Periodic sync for ready states during playing phase (every 2 seconds)
@@ -635,7 +800,7 @@ fun WordGameScreen(
                         // Mark player as ready
                         val playerSentence = arrangedWords.map { it.text }
                         
-                        if (gameLobby != null && currentUser != null) {
+                        if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                             // Multiplayer mode - sync with Firestore
                             scope.launch {
                                 println("DEBUG READY: Player clicking ready with sentence: $playerSentence")
@@ -759,7 +924,7 @@ fun WordGameScreen(
                 var playersWithSentences by remember { mutableStateOf(players.filter { it.selectedWords.isNotEmpty() }) }
                 
                 // In multiplayer mode, refresh sentences from Firestore when entering voting
-                if (gameLobby != null && currentUser != null) {
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                     LaunchedEffect(gamePhase) {
                         if (gamePhase == GamePhase.VOTING) {
                             val gameReadyResult = lobbyRepository.getGameReadyStates(gameLobby.gameId)
@@ -793,7 +958,7 @@ fun WordGameScreen(
                             .fillMaxWidth()
                             .clickable(enabled = userVote == null) {
                                 // Check if user is trying to vote for their own sentence
-                                val isOwnSentence = if (gameLobby != null && currentUser != null) {
+                                val isOwnSentence = if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                                     player.name == (currentUser.gameUsername ?: currentUser.displayName)
                                 } else {
                                     player.name == "You"
@@ -804,7 +969,7 @@ fun WordGameScreen(
                                 } else {
                                     userVote = index
                                     
-                                    if (gameLobby != null && currentUser != null) {
+                                    if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                                         // Multiplayer mode - submit vote to Firestore
                                         scope.launch {
                                             // Find the userId of the player being voted for
@@ -912,7 +1077,7 @@ fun WordGameScreen(
                 var sortedPlayers by remember { mutableStateOf(players.filter { it.selectedWords.isNotEmpty() }.sortedByDescending { it.currentRoundPoints }) }
                 
                 // In multiplayer mode, get results from Firestore
-                if (gameLobby != null && currentUser != null) {
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                     LaunchedEffect(gamePhase) {
                         if (gamePhase == GamePhase.RESULTS) {
                             // Get game ready states (sentences), voting results, and emoji awards
@@ -1044,6 +1209,44 @@ fun WordGameScreen(
         }
         
         GamePhase.WINNER -> {
+            // Winner screen with auto-return to lobby timer
+            var returnToLobbyTimeLeft by remember { mutableStateOf(10) }
+            
+            // Auto-return to lobby timer (10 seconds)
+            LaunchedEffect(gamePhase) {
+                if (gamePhase == GamePhase.WINNER) {
+                    while (returnToLobbyTimeLeft > 0) {
+                        kotlinx.coroutines.delay(1000L)
+                        returnToLobbyTimeLeft--
+                    }
+                    
+                    // Return to lobby after timer expires
+                    if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                        // Multiplayer mode - clear Firebase data and return to lobby
+                        scope.launch {
+                            println("DEBUG WINNER: Auto-returning to lobby, clearing Firebase data")
+                            try {
+                                // Clear all game data from Firebase
+                                lobbyRepository.clearVotingData(gameLobby.gameId)
+                                
+                                // Also clear round signals to prevent interference
+                                FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).delete().await()
+                                
+                                println("DEBUG WINNER: Successfully cleared Firebase data")
+                            } catch (e: Exception) {
+                                println("DEBUG WINNER: Failed to clear Firebase data: ${e.message}")
+                            }
+                            
+                            // Return to main menu (which will show the lobby since we're still in the game)
+                            onBackToMainMenu?.invoke()
+                        }
+                    } else {
+                        // Practice mode - return to main menu
+                        onBackToMainMenu?.invoke()
+                    }
+                }
+            }
+            
             // Winner screen with grand styling
             Column(
                 modifier = modifier
@@ -1111,32 +1314,64 @@ fun WordGameScreen(
                 
                 Spacer(modifier = Modifier.height(48.dp))
                 
-                // Play again button
-                Button(
-                    onClick = {
-                        // Reset entire game
-                        gameWords = wordRepository.getRandomWords()
-                        specialWords = wordRepository.getSpecialWords()
-                        arrangedWords = emptyList()
-                        timeLeft = 60
-                        votingTimeLeft = 20
-                        resultsTimeLeft = 5
-                        currentRound = 1
-                        gamePhase = GamePhase.PLAYING
-                        userVote = null
-                        sentenceEmojis = emptyMap() // Clear emoji tags for new game
-                        players = players.map { it.copy(isReady = false, selectedWords = emptyList(), points = 0, currentRoundPoints = 0) }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
+                // Return to lobby countdown
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF374151).copy(alpha = 0.8f)
                     ),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
-                        text = "Play Again",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        text = if (gameLobby != null) {
+                            "Returning to lobby in ${returnToLobbyTimeLeft}s"
+                        } else {
+                            "Returning to menu in ${returnToLobbyTimeLeft}s"
+                        },
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Return immediately button
+                OutlinedButton(
+                    onClick = {
+                        if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                            // Multiplayer mode - clear Firebase data and return to lobby
+                            scope.launch {
+                                println("DEBUG WINNER: Manual return to lobby, clearing Firebase data")
+                                try {
+                                    // Clear all game data from Firebase
+                                    lobbyRepository.clearVotingData(gameLobby.gameId)
+                                    
+                                    // Also clear round signals to prevent interference
+                                    FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).delete().await()
+                                    
+                                    println("DEBUG WINNER: Successfully cleared Firebase data")
+                                } catch (e: Exception) {
+                                    println("DEBUG WINNER: Failed to clear Firebase data: ${e.message}")
+                                }
+                                
+                                // Return to main menu (which will show the lobby since we're still in the game)
+                                onBackToMainMenu?.invoke()
+                            }
+                        } else {
+                            // Practice mode - return to main menu
+                            onBackToMainMenu?.invoke()
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = if (gameLobby != null) "Return to Lobby" else "Return to Menu",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
@@ -1156,7 +1391,7 @@ fun WordGameScreen(
             onEmojiSelected = { emoji ->
                 val sentenceIndex = selectedSentenceForEmoji!!
                 
-                if (gameLobby != null && currentUser != null) {
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                     // Multiplayer mode - sync with Firebase
                     scope.launch {
                         println("DEBUG EMOJI: Awarding $emoji to sentence $sentenceIndex")

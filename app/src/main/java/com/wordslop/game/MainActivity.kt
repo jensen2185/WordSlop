@@ -84,14 +84,15 @@ fun WordslopApp() {
         remember { mutableStateOf(emptyList<GameLobby>()) }
     }
     
-    // Clean up orphaned lobbies on app start and periodically
+    // Clean up orphaned lobbies on app start and periodically (only for authenticated users)
     LaunchedEffect(currentUser) {
-        if (currentUser != null) {
+        val user = currentUser
+        if (user != null && !user.isGuest) {
             // Clean up immediately on sign in
             lobbyRepository.cleanupOrphanedLobbies()
             
             // Then clean up every 15 seconds while app is running
-            while (currentUser != null) {
+            while (currentUser != null && currentUser?.isGuest != true) {
                 kotlinx.coroutines.delay(15000L) // 15 seconds
                 lobbyRepository.cleanupOrphanedLobbies()
             }

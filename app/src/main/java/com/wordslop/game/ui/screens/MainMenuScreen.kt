@@ -364,47 +364,6 @@ fun MainMenuScreen(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Debug buttons (temporary)
-            if (isLoggedIn) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                println("QUERY: Querying all Firebase lobbies")
-                                lobbyRepository.debugAllLobbies()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("QUERY FB", fontSize = 10.sp)
-                    }
-                    
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                println("NUCLEAR: Deleting ALL lobbies")
-                                val result = lobbyRepository.deleteAllLobbies()
-                                if (result.isSuccess) {
-                                    println("NUCLEAR: Successfully deleted all lobbies")
-                                } else {
-                                    println("NUCLEAR: Failed to delete lobbies: ${result.exceptionOrNull()?.message}")
-                                }
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("DELETE ALL", fontSize = 10.sp)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            
             // Version info
             Text(
                 text = "Version 1.0 - Beta",
