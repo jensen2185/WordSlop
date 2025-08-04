@@ -24,6 +24,7 @@ import com.wordslop.game.auth.UserInfo
 import com.wordslop.game.auth.createGuestUser
 import com.wordslop.game.ui.components.UsernameSelectionDialog
 import com.wordslop.game.ui.components.GuestLoginDialog
+import com.wordslop.game.repository.LobbyRepository
 import kotlinx.coroutines.launch
 
 @Composable
@@ -35,6 +36,7 @@ fun MainMenuScreen(
 ) {
     val context = LocalContext.current
     val authManager = remember { FirebaseAuthManager(context) }
+    val lobbyRepository = remember { LobbyRepository() }
     val scope = rememberCoroutineScope()
     
     var userInfo by remember { mutableStateOf(authManager.getCurrentUserInfo()) }
@@ -361,6 +363,42 @@ fun MainMenuScreen(
             }
             
             Spacer(modifier = Modifier.height(16.dp))
+            
+            // Debug buttons (temporary)
+            if (isLoggedIn) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                println("Manual cleanup triggered")
+                                lobbyRepository.cleanupOrphanedLobbies()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Cleanup", fontSize = 10.sp)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                println("Debug lobbies triggered")
+                                lobbyRepository.debugLobbies()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Debug", fontSize = 10.sp)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             
             // Version info
             Text(
