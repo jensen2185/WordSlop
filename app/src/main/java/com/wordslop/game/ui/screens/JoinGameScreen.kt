@@ -56,7 +56,7 @@ fun JoinGameScreen(
             Button(
                 onClick = onBack,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Gray
+                    containerColor = Color(0xFF10B981)
                 ),
                 modifier = Modifier.fillMaxWidth()
             ) {

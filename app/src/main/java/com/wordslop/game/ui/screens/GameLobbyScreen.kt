@@ -33,10 +33,11 @@ fun GameLobbyScreen(
     onStartGame: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showInsufficientPlayersDialog by remember { mutableStateOf(false) }
     val currentPlayer = gameLobby.players.find { it.userId == currentUser.userId }
     val isHost = currentPlayer?.isHost == true
-    val allPlayersReady = gameLobby.players.isNotEmpty() && gameLobby.players.all { it.isReady }
-    val canStartGame = isHost && (allPlayersReady || gameLobby.players.size == 1) // Allow single player for testing
+    val allNonHostPlayersReady = gameLobby.players.filter { !it.isHost }.all { it.isReady }
+    val canStartGame = isHost && allNonHostPlayersReady && gameLobby.players.size >= 2 // Host can start when all non-host players are ready
     val isFullLobby = gameLobby.players.size >= gameLobby.maxPlayers
     
     // Auto-start countdown when lobby is full
@@ -192,14 +193,20 @@ fun GameLobbyScreen(
             }
             
             // Action Buttons in left column
-            if (isHost && canStartGame && autoStartCountdown == null) {
+            if (isHost && autoStartCountdown == null) {
                 Button(
-                    onClick = onStartGame,
+                    onClick = {
+                        if (gameLobby.players.size < 2) {
+                            showInsufficientPlayersDialog = true
+                        } else if (canStartGame) {
+                            onStartGame()
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
+                        containerColor = if (canStartGame) Color(0xFF10B981) else Color.Gray
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -210,7 +217,7 @@ fun GameLobbyScreen(
                         color = Color.White
                     )
                 }
-            } else if ((!isHost || !canStartGame) && autoStartCountdown == null) {
+            } else if (!isHost && autoStartCountdown == null) {
                 Button(
                     onClick = onReady,
                     modifier = Modifier
@@ -252,7 +259,7 @@ fun GameLobbyScreen(
             
             if (isHost && !canStartGame && gameLobby.players.size > 1 && autoStartCountdown == null) {
                 Text(
-                    text = "Waiting for all players to be ready...",
+                    text = "Waiting for other players to be ready...",
                     fontSize = 14.sp,
                     color = Color.Gray,
                     textAlign = TextAlign.Center,
@@ -310,6 +317,36 @@ fun GameLobbyScreen(
                 }
             }
         }
+    }
+    
+    // Insufficient players dialog
+    if (showInsufficientPlayersDialog) {
+        AlertDialog(
+            onDismissRequest = { showInsufficientPlayersDialog = false },
+            title = {
+                Text(
+                    text = "Not Enough Players",
+                    color = Color.White
+                )
+            },
+            text = {
+                Text(
+                    text = "2 players needed to begin game",
+                    color = Color.Gray
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showInsufficientPlayersDialog = false }
+                ) {
+                    Text(
+                        text = "OK",
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            containerColor = Color(0xFF1F2937)
+        )
     }
 }
 

@@ -108,7 +108,7 @@ fun CreateGameScreen(
                                     .weight(1f)
                                     .clickable { isPublic = true },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isPublic) Color(0xFF10B981) else Color(0xFF374151)
+                                    containerColor = if (isPublic) MaterialTheme.colorScheme.primary else Color(0xFF374151)
                                 ),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
@@ -139,7 +139,7 @@ fun CreateGameScreen(
                                     .weight(1f)
                                     .clickable { isPublic = false },
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (!isPublic) Color(0xFFFF9800) else Color(0xFF374151)
+                                    containerColor = if (!isPublic) MaterialTheme.colorScheme.primary else Color(0xFF374151)
                                 ),
                                 shape = RoundedCornerShape(6.dp)
                             ) {
@@ -190,7 +190,7 @@ fun CreateGameScreen(
                                         .weight(1f)
                                         .clickable { numberOfRounds = rounds },
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (numberOfRounds == rounds) Color(0xFF10B981) else Color(0xFF374151)
+                                        containerColor = if (numberOfRounds == rounds) MaterialTheme.colorScheme.primary else Color(0xFF374151)
                                     ),
                                     shape = RoundedCornerShape(6.dp)
                                 ) {

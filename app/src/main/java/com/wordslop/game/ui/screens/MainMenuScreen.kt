@@ -117,7 +117,7 @@ fun MainMenuScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Gray.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                 Column(
@@ -227,7 +227,7 @@ fun MainMenuScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Green.copy(alpha = 0.2f)),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -268,7 +268,7 @@ fun MainMenuScreen(
                                     Text(
                                         text = email,
                                         fontSize = 12.sp,
-                                        color = Color.Gray
+                                        color = Color.White
                                     )
                                 }
                             }
@@ -380,6 +380,9 @@ fun MainMenuScreen(
             UsernameSelectionDialog(
                 defaultUsername = googleAuth.displayName.split(" ").firstOrNull() ?: "Player",
                 onUsernameConfirmed = { customUsername ->
+                    // Save the custom username for persistence
+                    authManager.saveCustomUsername(googleAuth.userId, customUsername)
+                    
                     userInfo = com.wordslop.game.auth.UserInfo(
                         userId = googleAuth.userId,
                         displayName = googleAuth.displayName,

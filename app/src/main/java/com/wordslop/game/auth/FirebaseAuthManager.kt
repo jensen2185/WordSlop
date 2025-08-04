@@ -110,28 +110,42 @@ class FirebaseAuthManager(private val context: Context) {
     }
     
     /**
-     * Save guest username for persistence
+     * Save custom username for persistence (works for both guest and Google users)
      */
-    fun saveGuestUsername(userId: String, username: String) {
-        prefs.edit().putString("guest_username_$userId", username).apply()
+    fun saveCustomUsername(userId: String, username: String) {
+        prefs.edit().putString("custom_username_$userId", username).apply()
     }
     
     /**
-     * Get saved guest username
+     * Get saved custom username (works for both guest and Google users)
+     */
+    fun getCustomUsername(userId: String): String? {
+        return prefs.getString("custom_username_$userId", null)
+    }
+    
+    /**
+     * Save guest username for persistence (deprecated - use saveCustomUsername)
+     */
+    fun saveGuestUsername(userId: String, username: String) {
+        saveCustomUsername(userId, username)
+    }
+    
+    /**
+     * Get saved guest username (deprecated - use getCustomUsername)
      */
     fun getGuestUsername(userId: String): String? {
-        return prefs.getString("guest_username_$userId", null)
+        return getCustomUsername(userId)
     }
     
     /**
      * Sign out the current user
      */
     fun signOut() {
-        // Clear guest username if signing out anonymous user
+        // Clear custom username for any user type
         currentUser?.let { user ->
-            if (user.isAnonymous) {
-                prefs.edit().remove("guest_username_${user.uid}").apply()
-            }
+            prefs.edit().remove("custom_username_${user.uid}").apply()
+            // Also clear legacy guest username key for compatibility
+            prefs.edit().remove("guest_username_${user.uid}").apply()
         }
         auth.signOut()
         oneTapClient.signOut()
@@ -143,18 +157,14 @@ class FirebaseAuthManager(private val context: Context) {
     fun getCurrentUserInfo(): UserInfo? {
         val user = currentUser ?: return null
         
-        // For anonymous users, retrieve saved username
-        val gameUsername = if (user.isAnonymous) {
-            getGuestUsername(user.uid)
-        } else {
-            null
-        }
+        // Retrieve saved custom username for both anonymous and Google users
+        val savedUsername = getGuestUsername(user.uid) // This works for both guest and Google users
         
         return UserInfo(
             userId = user.uid,
-            displayName = if (user.isAnonymous && gameUsername != null) gameUsername else (user.displayName ?: "Unknown User"),
+            displayName = if (user.isAnonymous && savedUsername != null) savedUsername else (user.displayName ?: "Unknown User"),
             email = user.email ?: "",
-            gameUsername = gameUsername,
+            gameUsername = savedUsername, // Use saved username for both guest and Google users
             isGuest = user.isAnonymous
         )
     }

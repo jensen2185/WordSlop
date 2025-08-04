@@ -489,6 +489,28 @@ fun WordGameScreen(
         }
     }
     
+    // CPU voting simulation (only in practice mode)
+    LaunchedEffect(gamePhase, userVote) {
+        if (gamePhase == GamePhase.VOTING && gameLobby == null && userVote != null) {
+            // Wait a moment for user to see their vote, then CPUs vote
+            kotlinx.coroutines.delay(1000L) // 1 second delay
+            
+            // All CPU players vote for the user's sentence (index 0, which is "You")
+            val userSentenceIndex = 0 // "You" is always first in the voting list
+            
+            // Update players to give the user points from CPU votes
+            players = players.map { player ->
+                if (player.name == "You") {
+                    // User gets 1 point for each CPU vote (5 CPUs = 5 points)
+                    player.copy(currentRoundPoints = player.currentRoundPoints + 5)
+                } else player
+            }
+            
+            // Immediately proceed to results since all have "voted"
+            gamePhase = GamePhase.RESULTS
+        }
+    }
+    
     // Multiplayer ready status sync (only in multiplayer mode)
     if (gameLobby != null && currentUser != null && lobbyRepository != null) {
         val updatedLobby by lobbyRepository.getLobbyFlow(gameLobby.gameId).collectAsState(initial = gameLobby)
@@ -639,7 +661,7 @@ fun WordGameScreen(
             // Timer
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = if (timeLeft <= 10) Color.Red.copy(alpha = 0.3f) else Color.Blue.copy(alpha = 0.3f)
+                    containerColor = if (timeLeft <= 10) Color.Red.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                 ),
                 shape = RoundedCornerShape(4.dp),
                 border = BorderStroke(1.dp, Color.Transparent) // Consistent border to prevent layout shifts
@@ -828,7 +850,7 @@ fun WordGameScreen(
                         onBackToMainMenu?.invoke()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
+                        containerColor = MaterialTheme.colorScheme.primary
                     )
                 ) {
                     Text("Main Menu")
@@ -944,7 +966,7 @@ fun WordGameScreen(
                     
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (votingTimeLeft <= 5) Color.Red.copy(alpha = 0.3f) else Color(0xFFFF9800).copy(alpha = 0.3f)
+                            containerColor = if (votingTimeLeft <= 5) Color.Red.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         ),
                         shape = RoundedCornerShape(4.dp)
                     ) {
@@ -1098,7 +1120,7 @@ fun WordGameScreen(
                     
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFFF9800).copy(alpha = 0.3f)
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                         ),
                         shape = RoundedCornerShape(4.dp)
                     ) {
@@ -1390,7 +1412,7 @@ fun WordGameScreen(
                 // Return to lobby countdown
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFF374151).copy(alpha = 0.8f)
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -1436,8 +1458,8 @@ fun WordGameScreen(
                             onBackToMainMenu?.invoke()
                         }
                     },
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
