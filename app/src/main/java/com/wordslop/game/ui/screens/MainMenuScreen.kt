@@ -373,27 +373,32 @@ fun MainMenuScreen(
                     Button(
                         onClick = {
                             scope.launch {
-                                println("Manual cleanup triggered")
-                                lobbyRepository.cleanupOrphanedLobbies()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Cleanup", fontSize = 10.sp)
-                    }
-                    
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                println("Debug lobbies triggered")
-                                lobbyRepository.debugLobbies()
+                                println("QUERY: Querying all Firebase lobbies")
+                                lobbyRepository.debugAllLobbies()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Blue),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Debug", fontSize = 10.sp)
+                        Text("QUERY FB", fontSize = 10.sp)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                println("NUCLEAR: Deleting ALL lobbies")
+                                val result = lobbyRepository.deleteAllLobbies()
+                                if (result.isSuccess) {
+                                    println("NUCLEAR: Successfully deleted all lobbies")
+                                } else {
+                                    println("NUCLEAR: Failed to delete lobbies: ${result.exceptionOrNull()?.message}")
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("DELETE ALL", fontSize = 10.sp)
                     }
                 }
                 

@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -87,23 +90,29 @@ fun WordslopApp() {
             // Clean up immediately on sign in
             lobbyRepository.cleanupOrphanedLobbies()
             
-            // Then clean up every 30 seconds while app is running
+            // Then clean up every 15 seconds while app is running
             while (currentUser != null) {
-                kotlinx.coroutines.delay(30000L) // 30 seconds
+                kotlinx.coroutines.delay(15000L) // 15 seconds
                 lobbyRepository.cleanupOrphanedLobbies()
             }
         }
     }
     
-    // Player heartbeat - keep active players' timestamps updated
-    LaunchedEffect(currentUser, currentGameLobby) {
+    // Player heartbeat - keep active players' timestamps updated (only when actively in lobby screen)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(currentUser, currentGameLobby, currentScreen, lifecycleOwner) {
         val user = currentUser
         val lobby = currentGameLobby
-        if (user != null && lobby != null) {
-            // Send heartbeat every 45 seconds while in lobby
-            while (currentGameLobby?.gameId == lobby.gameId && currentUser?.userId == user.userId) {
-                lobbyRepository.updatePlayerHeartbeat(lobby.gameId, user.userId)
-                kotlinx.coroutines.delay(45000L) // 45 seconds
+        if (user != null && lobby != null && (currentScreen == Screen.GameLobby || currentScreen == Screen.WordGame)) {
+            // Only send heartbeat when in STARTED state AND actually in lobby/game screen
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (currentGameLobby?.gameId == lobby.gameId && 
+                       currentUser?.userId == user.userId &&
+                       (currentScreen == Screen.GameLobby || currentScreen == Screen.WordGame)) {
+                    println("DEBUG HEARTBEAT: Sending heartbeat for ${user.gameUsername} in lobby ${lobby.gameId} (screen: $currentScreen)")
+                    lobbyRepository.updatePlayerHeartbeat(lobby.gameId, user.userId)
+                    kotlinx.coroutines.delay(30000L) // 30 seconds
+                }
             }
         }
     }
