@@ -103,7 +103,7 @@ fun WordGameScreen(
     onBackToMainMenu: (() -> Unit)? = null
 ) {
     val wordRepository = remember { WordRepository() }
-    val lobbyRepository = if (gameLobby != null && currentUser != null && !currentUser.isGuest) remember { LobbyRepository() } else null
+    val lobbyRepository = if (gameLobby != null && currentUser != null) remember { LobbyRepository() } else null
     val scope = rememberCoroutineScope()
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
     var specialWords by remember { mutableStateOf(wordRepository.getSpecialWords()) }

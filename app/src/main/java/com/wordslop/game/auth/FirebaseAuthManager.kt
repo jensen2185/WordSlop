@@ -20,6 +20,7 @@ class FirebaseAuthManager(private val context: Context) {
     
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val oneTapClient: SignInClient = Identity.getSignInClient(context)
+    private val prefs = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
     
     val currentUser: FirebaseUser?
         get() = auth.currentUser
@@ -86,9 +87,52 @@ class FirebaseAuthManager(private val context: Context) {
     }
     
     /**
+     * Sign in anonymously for guest users
+     */
+    suspend fun signInAnonymously(): AuthResult {
+        return try {
+            val result = auth.signInAnonymously().await()
+            val user = result.user
+            
+            if (user != null) {
+                AuthResult.Success(
+                    userId = user.uid,
+                    displayName = "Anonymous User",
+                    email = ""
+                )
+            } else {
+                AuthResult.Error("Anonymous authentication failed")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            AuthResult.Error(e.message ?: "Anonymous authentication failed")
+        }
+    }
+    
+    /**
+     * Save guest username for persistence
+     */
+    fun saveGuestUsername(userId: String, username: String) {
+        prefs.edit().putString("guest_username_$userId", username).apply()
+    }
+    
+    /**
+     * Get saved guest username
+     */
+    fun getGuestUsername(userId: String): String? {
+        return prefs.getString("guest_username_$userId", null)
+    }
+    
+    /**
      * Sign out the current user
      */
     fun signOut() {
+        // Clear guest username if signing out anonymous user
+        currentUser?.let { user ->
+            if (user.isAnonymous) {
+                prefs.edit().remove("guest_username_${user.uid}").apply()
+            }
+        }
         auth.signOut()
         oneTapClient.signOut()
     }
@@ -98,10 +142,20 @@ class FirebaseAuthManager(private val context: Context) {
      */
     fun getCurrentUserInfo(): UserInfo? {
         val user = currentUser ?: return null
+        
+        // For anonymous users, retrieve saved username
+        val gameUsername = if (user.isAnonymous) {
+            getGuestUsername(user.uid)
+        } else {
+            null
+        }
+        
         return UserInfo(
             userId = user.uid,
-            displayName = user.displayName ?: "Unknown User",
-            email = user.email ?: ""
+            displayName = if (user.isAnonymous && gameUsername != null) gameUsername else (user.displayName ?: "Unknown User"),
+            email = user.email ?: "",
+            gameUsername = gameUsername,
+            isGuest = user.isAnonymous
         )
     }
 }

@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import com.wordslop.game.auth.AuthResult
 import com.wordslop.game.auth.FirebaseAuthManager
 import com.wordslop.game.auth.UserInfo
-import com.wordslop.game.auth.createGuestUser
 import com.wordslop.game.ui.components.UsernameSelectionDialog
 import com.wordslop.game.ui.components.GuestLoginDialog
 import com.wordslop.game.repository.LobbyRepository
@@ -277,9 +276,8 @@ fun MainMenuScreen(
                         // Right side - Sign out button
                         OutlinedButton(
                             onClick = {
-                                if (userInfo?.isGuest != true) {
-                                    authManager.signOut()
-                                }
+                                // Sign out both Google and anonymous users
+                                authManager.signOut()
                                 userInfo = null
                                 errorMessage = null
                                 pendingGoogleUserInfo = null
@@ -403,9 +401,31 @@ fun MainMenuScreen(
     if (showGuestDialog) {
         GuestLoginDialog(
             onGuestLogin = { guestUsername ->
-                userInfo = createGuestUser(guestUsername)
-                showGuestDialog = false
-                errorMessage = null
+                scope.launch {
+                    isLoading = true
+                    errorMessage = null
+                    
+                    val authResult = authManager.signInAnonymously()
+                    when (authResult) {
+                        is AuthResult.Success -> {
+                            // Save the guest username for persistence
+                            authManager.saveGuestUsername(authResult.userId, guestUsername)
+                            
+                            userInfo = UserInfo(
+                                userId = authResult.userId, // Real Firebase UID
+                                displayName = guestUsername,
+                                email = "",
+                                gameUsername = guestUsername,
+                                isGuest = true
+                            )
+                            showGuestDialog = false
+                        }
+                        is AuthResult.Error -> {
+                            errorMessage = "Failed to create guest session: ${authResult.message}"
+                        }
+                    }
+                    isLoading = false
+                }
             },
             onDismiss = {
                 showGuestDialog = false
