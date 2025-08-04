@@ -13,8 +13,8 @@ android {
         applicationId = "com.wordslop.game"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -66,6 +66,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    
+    // Google Play Games services for multiplayer
+    implementation("com.google.android.gms:play-services-games-v2:19.0.0")
     
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

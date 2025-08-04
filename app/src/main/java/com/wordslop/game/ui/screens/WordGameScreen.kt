@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +32,11 @@ import com.wordslop.game.ui.components.DraggableWordCard
 import com.wordslop.game.ui.components.ArrangementBar
 import com.wordslop.game.ui.components.SelfVoteWarningDialog
 import com.wordslop.game.ui.components.EmojiSelectionDialog
+import com.wordslop.game.model.GameLobby
+import com.wordslop.game.auth.UserInfo
+import com.wordslop.game.repository.LobbyRepository
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 data class Player(
@@ -43,17 +49,17 @@ data class Player(
 
 /**
  * Smart join function that handles special spacing for add-on words.
- * - "s" and "'s" can join with previous regular words or "er"
- * - "er" can join with previous regular words and allows subsequent add-ons to join with it
+ * - "s" and "'s" can join with previous regular words or "er"/"es"
+ * - "er" and "es" can join with previous regular words and allow subsequent add-ons to join with them
  * - "as" acts as a blocker - prevents add-ons from joining with it and doesn't join with previous words
  */
 fun smartJoinWords(words: List<String>): String {
     if (words.isEmpty()) return ""
     if (words.size == 1) return words[0]
     
-    val joinableAddOns = setOf("s", "'s", "er")  // These can join with previous words
+    val joinableAddOns = setOf("s", "'s", "er", "es")  // These can join with previous words
     val blockingWords = setOf("as")  // These prevent add-ons from joining but don't join themselves
-    val joinableWithWords = setOf("er")  // These allow subsequent add-ons to join with them
+    val joinableWithWords = setOf("er", "es")  // These allow subsequent add-ons to join with them
     val result = StringBuilder()
     
     for (i in words.indices) {
@@ -89,9 +95,13 @@ enum class GamePhase {
 @Composable
 fun WordGameScreen(
     modifier: Modifier = Modifier,
+    gameLobby: GameLobby? = null, // If null, it's practice mode
+    currentUser: UserInfo? = null,
     onBackToMainMenu: (() -> Unit)? = null
 ) {
     val wordRepository = remember { WordRepository() }
+    val lobbyRepository = remember { LobbyRepository() }
+    val scope = rememberCoroutineScope()
     var gameWords by remember { mutableStateOf(wordRepository.getRandomWords()) }
     var specialWords by remember { mutableStateOf(wordRepository.getSpecialWords()) }
     // Simple list of words in order
@@ -110,20 +120,37 @@ fun WordGameScreen(
     var resultsTimeLeft by remember { mutableStateOf(5) }
     var userVote by remember { mutableStateOf<Int?>(null) }
     var currentRound by remember { mutableStateOf(1) }
-    var totalRounds by remember { mutableStateOf(3) }
+    var totalRounds by remember { mutableStateOf(gameLobby?.numberOfRounds ?: 3) }
     var showSelfVoteWarning by remember { mutableStateOf(false) }
     var showEmojiDialog by remember { mutableStateOf(false) }
     var selectedSentenceForEmoji by remember { mutableStateOf<Int?>(null) }
-    var sentenceEmojis by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    var sentenceEmojis by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
+    
+    // Initialize players based on mode (multiplayer vs practice)
     var players by remember { 
-        mutableStateOf(listOf(
-            Player("You", false, emptyList()),
-            Player("CPU1", false, emptyList()),
-            Player("CPU2", false, emptyList()),
-            Player("CPU3", false, emptyList()),
-            Player("CPU4", false, emptyList()),
-            Player("CPU5", false, emptyList())
-        )) 
+        mutableStateOf(
+            if (gameLobby != null) {
+                // Multiplayer mode - use real players from lobby
+                // IMPORTANT: Reset ready status for game phase (separate from lobby ready)
+                gameLobby.players.map { lobbyPlayer ->
+                    Player(
+                        name = if (lobbyPlayer.userId == currentUser?.userId) "You" else lobbyPlayer.username,
+                        isReady = false, // Always start as not ready in game
+                        selectedWords = emptyList()
+                    )
+                }
+            } else {
+                // Practice mode - use CPU players
+                listOf(
+                    Player("You", false, emptyList()),
+                    Player("CPU1", false, emptyList()),
+                    Player("CPU2", false, emptyList()),
+                    Player("CPU3", false, emptyList()),
+                    Player("CPU4", false, emptyList()),
+                    Player("CPU5", false, emptyList())
+                )
+            }
+        ) 
     }
     
     // Helper function for word insertion
@@ -200,13 +227,26 @@ fun WordGameScreen(
     // Voting timer countdown effect
     LaunchedEffect(gamePhase) {
         if (gamePhase == GamePhase.VOTING) {
-            while (votingTimeLeft > 0 && gamePhase == GamePhase.VOTING && userVote == null) {
+            while (votingTimeLeft > 0 && gamePhase == GamePhase.VOTING) {
                 kotlinx.coroutines.delay(1000L)
                 votingTimeLeft--
+                
+                // In multiplayer mode, check if all players have voted
+                if (gameLobby != null && currentUser != null) {
+                    val votingResult = lobbyRepository.getVotingResults(gameLobby.gameId)
+                    votingResult.onSuccess { votes ->
+                        // Check if all players have voted (number of votes equals number of players)
+                        if (votes.size >= gameLobby.players.size) {
+                            gamePhase = GamePhase.RESULTS
+                            return@LaunchedEffect
+                        }
+                    }
+                }
             }
             
-            // If user voted or time ran out, move to results
-            if (userVote != null || votingTimeLeft <= 0) {
+            // Move to results when time runs out
+            if (votingTimeLeft <= 0) {
+                println("DEBUG: Voting timer expired, moving to results. Round: $currentRound")
                 gamePhase = GamePhase.RESULTS
             }
         }
@@ -223,7 +263,7 @@ fun WordGameScreen(
             // Auto-proceed after 5 seconds
             if (resultsTimeLeft <= 0) {
                 if (currentRound < totalRounds) {
-                    // Go to next round
+                    // Go to next round - simple approach
                     currentRound++
                     gameWords = wordRepository.getRandomWords()
                     specialWords = wordRepository.getSpecialWords()
@@ -233,14 +273,21 @@ fun WordGameScreen(
                     resultsTimeLeft = 5
                     gamePhase = GamePhase.PLAYING
                     userVote = null
-                    sentenceEmojis = emptyMap() // Clear emoji tags for new round
+                    sentenceEmojis = emptyMap()
                     players = players.map { 
                         it.copy(
                             isReady = false, 
                             selectedWords = emptyList(),
-                            points = it.points + it.currentRoundPoints, // Transfer round points to total
-                            currentRoundPoints = 0 // Reset round points
+                            points = it.points + it.currentRoundPoints,
+                            currentRoundPoints = 0
                         )
+                    }
+                    
+                    // Clear voting data for multiplayer mode (fire and forget)
+                    if (gameLobby != null && currentUser != null) {
+                        scope.launch {
+                            lobbyRepository.clearVotingData(gameLobby.gameId)
+                        }
                     }
                 } else {
                     // Game finished - transfer final round points and show winner
@@ -256,10 +303,10 @@ fun WordGameScreen(
         }
     }
     
-    // CPU simulation effect
+    // CPU simulation effect (only in practice mode)
     LaunchedEffect(gamePhase) {
-        if (gamePhase == GamePhase.PLAYING) {
-            // Simulate CPU players selecting words and hitting ready immediately
+        if (gamePhase == GamePhase.PLAYING && gameLobby == null) {
+            // Only simulate CPU players in practice mode
             kotlinx.coroutines.delay(3000L) // Wait 3 seconds, then all CPUs get ready
             
             players = players.map { player ->
@@ -269,6 +316,70 @@ fun WordGameScreen(
                         selectedWords = gameWords.shuffled().take(3).map { word -> word.text }
                     )
                 } else player
+            }
+        }
+    }
+    
+    // Multiplayer ready status sync (only in multiplayer mode)
+    if (gameLobby != null && currentUser != null) {
+        val updatedLobby by lobbyRepository.getLobbyFlow(gameLobby.gameId).collectAsState(initial = gameLobby)
+        
+        // Periodic sync for ready states during playing phase (every 2 seconds)
+        LaunchedEffect(gamePhase) {
+            if (gamePhase == GamePhase.PLAYING) {
+                while (gamePhase == GamePhase.PLAYING) {
+                    kotlinx.coroutines.delay(2000L)
+                    println("DEBUG GAME: Periodic sync - checking ready states")
+                    
+                    // Get game-specific ready states from Firestore
+                    val gameReadyResult = lobbyRepository.getGameReadyStates(gameLobby.gameId)
+                    gameReadyResult.onSuccess { gameReadyStates ->
+                        println("DEBUG GAME: Got ${gameReadyStates.size} ready states from Firestore")
+                        
+                        // Update player ready status from game ready states (not lobby ready states)
+                        val updatedPlayers = players.map { localPlayer ->
+                            val currentUserId = if (localPlayer.name == "You") currentUser.userId else {
+                                // Find userId by matching username
+                                gameLobby.players.find { it.username == localPlayer.name }?.userId
+                            }
+                            
+                            val gameState = currentUserId?.let { gameReadyStates[it] }
+                            if (gameState != null) {
+                                val newReadyStatus = gameState["isReady"] as? Boolean ?: false
+                                val newWords = (gameState["selectedWords"] as? List<String>) ?: emptyList()
+                                
+                                // Log status changes
+                                if (localPlayer.isReady != newReadyStatus) {
+                                    println("DEBUG GAME: ${localPlayer.name} ready status changed: ${localPlayer.isReady} -> $newReadyStatus")
+                                }
+                                
+                                localPlayer.copy(
+                                    isReady = newReadyStatus,
+                                    selectedWords = newWords
+                                )
+                            } else {
+                                localPlayer
+                            }
+                        }
+                        
+                        // Only update if there are actual changes
+                        if (updatedPlayers != players) {
+                            players = updatedPlayers
+                        }
+                        
+                        // Check if all players are ready for voting
+                        val allPlayersReady = gameReadyStates.values.all { 
+                            it["isReady"] as? Boolean ?: false 
+                        }
+                        if (allPlayersReady && gameReadyStates.size >= 2) {
+                            println("DEBUG GAME: All players ready, proceeding to voting")
+                            gamePhase = GamePhase.VOTING
+                            return@LaunchedEffect
+                        }
+                    }.onFailure { error ->
+                        println("DEBUG GAME: Failed to sync ready states: ${error.message}")
+                    }
+                }
             }
         }
     }
@@ -306,14 +417,16 @@ fun WordGameScreen(
                 players.forEach { player ->
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = if (player.isReady) Color.Green.copy(alpha = 0.3f) else Color.Gray.copy(alpha = 0.3f)
+                            containerColor = if (player.isReady) Color.Green.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f)
                         ),
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(4.dp),
+                        border = if (player.isReady) BorderStroke(1.dp, Color.Green) else null
                     ) {
                         Text(
-                            text = player.name,
-                            color = Color.White,
+                            text = if (player.isReady) "${player.name} ✓" else player.name,
+                            color = if (player.isReady) Color.Green else Color.White,
                             fontSize = 12.sp,
+                            fontWeight = if (player.isReady) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -521,9 +634,39 @@ fun WordGameScreen(
                     onClick = {
                         // Mark player as ready
                         val playerSentence = arrangedWords.map { it.text }
-                        players = players.map { 
-                            if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
-                            else it 
+                        
+                        if (gameLobby != null && currentUser != null) {
+                            // Multiplayer mode - sync with Firestore
+                            scope.launch {
+                                println("DEBUG READY: Player clicking ready with sentence: $playerSentence")
+                                val result = lobbyRepository.updatePlayerGameReady(
+                                    gameLobby.gameId, 
+                                    currentUser.userId, 
+                                    true, 
+                                    playerSentence
+                                )
+                                result.onSuccess {
+                                    println("DEBUG READY: Successfully updated ready status in Firestore")
+                                    // Update local state after successful sync
+                                    players = players.map { 
+                                        if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                                        else it 
+                                    }
+                                }.onFailure { error ->
+                                    println("DEBUG READY: Failed to update game ready status: ${error.message}")
+                                    // Still update local state to provide immediate feedback
+                                    players = players.map { 
+                                        if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                                        else it 
+                                    }
+                                }
+                            }
+                        } else {
+                            // Practice mode - update local state only
+                            players = players.map { 
+                                if (it.name == "You") it.copy(isReady = true, selectedWords = playerSentence) 
+                                else it 
+                            }
                         }
                     },
                     enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
@@ -612,8 +755,33 @@ fun WordGameScreen(
                 }
                 
                 // Anonymous sentences - compact layout with randomized order (shuffled once)
-                val playersWithSentences = players.filter { it.selectedWords.isNotEmpty() }
-                val randomizedPlayersWithIndex = remember(gamePhase, currentRound) { 
+                // For multiplayer, get sentences from Firestore game ready states
+                var playersWithSentences by remember { mutableStateOf(players.filter { it.selectedWords.isNotEmpty() }) }
+                
+                // In multiplayer mode, refresh sentences from Firestore when entering voting
+                if (gameLobby != null && currentUser != null) {
+                    LaunchedEffect(gamePhase) {
+                        if (gamePhase == GamePhase.VOTING) {
+                            val gameReadyResult = lobbyRepository.getGameReadyStates(gameLobby.gameId)
+                            gameReadyResult.onSuccess { gameReadyStates ->
+                                // Create players with sentences from Firestore
+                                playersWithSentences = gameReadyStates.values.mapNotNull { gameState ->
+                                    val selectedWords = gameState["selectedWords"] as? List<String>
+                                    val username = gameState["username"] as? String
+                                    if (!selectedWords.isNullOrEmpty() && username != null) {
+                                        Player(
+                                            name = username,
+                                            isReady = true,
+                                            selectedWords = selectedWords
+                                        )
+                                    } else null
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                val randomizedPlayersWithIndex = remember(gamePhase, currentRound, playersWithSentences) { 
                     playersWithSentences.shuffled().mapIndexed { index, player -> 
                         index to player 
                     }
@@ -625,16 +793,35 @@ fun WordGameScreen(
                             .fillMaxWidth()
                             .clickable(enabled = userVote == null) {
                                 // Check if user is trying to vote for their own sentence
-                                if (player.name == "You") {
+                                val isOwnSentence = if (gameLobby != null && currentUser != null) {
+                                    player.name == (currentUser.gameUsername ?: currentUser.displayName)
+                                } else {
+                                    player.name == "You"
+                                }
+                                
+                                if (isOwnSentence) {
                                     showSelfVoteWarning = true
                                 } else {
                                     userVote = index
-                                    // Award point to voted player and CPUs vote for user
-                                    players = players.map { p ->
-                                        when {
-                                            p.name == player.name -> p.copy(currentRoundPoints = p.currentRoundPoints + 1) // User's vote
-                                            p.name == "You" -> p.copy(currentRoundPoints = p.currentRoundPoints + 3) // CPUs vote for user
-                                            else -> p
+                                    
+                                    if (gameLobby != null && currentUser != null) {
+                                        // Multiplayer mode - submit vote to Firestore
+                                        scope.launch {
+                                            // Find the userId of the player being voted for
+                                            val votedForUserId = gameLobby.players.find { it.username == player.name }?.userId
+                                            if (votedForUserId != null) {
+                                                val result = lobbyRepository.submitVote(gameLobby.gameId, currentUser.userId, votedForUserId)
+                                                result.onFailure { error ->
+                                                    println("Failed to submit vote: ${error.message}")
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // Practice mode - local vote handling (no CPU auto-voting in online mode)
+                                        players = players.map { p ->
+                                            if (p.name == player.name) {
+                                                p.copy(currentRoundPoints = p.currentRoundPoints + 1)
+                                            } else p
                                         }
                                     }
                                 }
@@ -673,7 +860,7 @@ fun WordGameScreen(
                 
                 if (userVote != null) {
                     Text(
-                        text = "CPUs voted for your sentence! Moving to results...",
+                        text = "Vote submitted! Waiting for other players...",
                         color = Color.Green,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
@@ -722,11 +909,69 @@ fun WordGameScreen(
                 }
                 
                 // Show all sentences sorted by current round points (highest first)
-                val playersWithSentences = players.filter { it.selectedWords.isNotEmpty() }
-                val sortedPlayers = playersWithSentences.sortedByDescending { it.currentRoundPoints }
+                var sortedPlayers by remember { mutableStateOf(players.filter { it.selectedWords.isNotEmpty() }.sortedByDescending { it.currentRoundPoints }) }
+                
+                // In multiplayer mode, get results from Firestore
+                if (gameLobby != null && currentUser != null) {
+                    LaunchedEffect(gamePhase) {
+                        if (gamePhase == GamePhase.RESULTS) {
+                            // Get game ready states (sentences), voting results, and emoji awards
+                            val gameReadyResult = lobbyRepository.getGameReadyStates(gameLobby.gameId)
+                            val votingResult = lobbyRepository.getVotingResults(gameLobby.gameId)
+                            val emojiResult = lobbyRepository.getSentenceEmojis(gameLobby.gameId)
+                            
+                            // Load emojis from Firebase
+                            emojiResult.onSuccess { emojis ->
+                                println("DEBUG EMOJI: Loaded ${emojis.size} emoji entries from Firebase")
+                                sentenceEmojis = emojis
+                            }.onFailure { error ->
+                                println("DEBUG EMOJI: Failed to load emojis: ${error.message}")
+                            }
+                            
+                            if (gameReadyResult.isSuccess && votingResult.isSuccess) {
+                                val gameReadyStates = gameReadyResult.getOrNull() ?: emptyMap()
+                                val votes = votingResult.getOrNull() ?: emptyMap()
+                                
+                                // Calculate points from votes
+                                val voteCount = votes.values.groupingBy { it }.eachCount()
+                                
+                                // Create players with sentences and calculated points
+                                sortedPlayers = gameReadyStates.values.mapNotNull { gameState ->
+                                    val selectedWords = gameState["selectedWords"] as? List<String>
+                                    val username = gameState["username"] as? String
+                                    val userId = gameReadyStates.entries.find { it.value == gameState }?.key
+                                    
+                                    if (!selectedWords.isNullOrEmpty() && username != null && userId != null) {
+                                        val points = voteCount[userId] ?: 0
+                                        Player(
+                                            name = username,
+                                            isReady = true,
+                                            selectedWords = selectedWords,
+                                            currentRoundPoints = points
+                                        )
+                                    } else null
+                                }.sortedByDescending { it.currentRoundPoints }
+                            }
+                            
+                            // Periodic emoji sync during results phase (every 2 seconds)
+                            while (gamePhase == GamePhase.RESULTS) {
+                                kotlinx.coroutines.delay(2000L)
+                                val emojiSyncResult = lobbyRepository.getSentenceEmojis(gameLobby.gameId)
+                                emojiSyncResult.onSuccess { updatedEmojis ->
+                                    if (updatedEmojis != sentenceEmojis) {
+                                        println("DEBUG EMOJI: Synced ${updatedEmojis.size} emoji entries from Firebase")
+                                        sentenceEmojis = updatedEmojis
+                                    }
+                                }.onFailure { error ->
+                                    println("DEBUG EMOJI: Failed to sync emojis: ${error.message}")
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 sortedPlayers.forEachIndexed { index, player ->
-                    val sentenceEmoji = sentenceEmojis[index]
+                    val sentenceEmojiList = sentenceEmojis[index] ?: emptyList()
                     
                     Card(
                         modifier = Modifier
@@ -753,7 +998,7 @@ fun WordGameScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmoji != null) " $sentenceEmoji" else ""}",
+                                text = "${smartJoinWords(player.selectedWords).replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }}${if (sentenceEmojiList.isNotEmpty()) " ${sentenceEmojiList.joinToString(" ")}" else ""}",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Normal,
@@ -909,7 +1154,31 @@ fun WordGameScreen(
     if (showEmojiDialog && selectedSentenceForEmoji != null) {
         EmojiSelectionDialog(
             onEmojiSelected = { emoji ->
-                sentenceEmojis = sentenceEmojis + (selectedSentenceForEmoji!! to emoji)
+                val sentenceIndex = selectedSentenceForEmoji!!
+                
+                if (gameLobby != null && currentUser != null) {
+                    // Multiplayer mode - sync with Firebase
+                    scope.launch {
+                        println("DEBUG EMOJI: Awarding $emoji to sentence $sentenceIndex")
+                        val result = lobbyRepository.awardEmoji(gameLobby.gameId, sentenceIndex, emoji, currentUser.userId)
+                        result.onSuccess {
+                            println("DEBUG EMOJI: Successfully awarded emoji")
+                            // Update local state immediately for responsiveness
+                            val currentEmojis = sentenceEmojis[sentenceIndex] ?: emptyList()
+                            sentenceEmojis = sentenceEmojis + (sentenceIndex to currentEmojis + emoji)
+                        }.onFailure { error ->
+                            println("DEBUG EMOJI: Failed to award emoji: ${error.message}")
+                            // Still update locally as fallback
+                            val currentEmojis = sentenceEmojis[sentenceIndex] ?: emptyList()
+                            sentenceEmojis = sentenceEmojis + (sentenceIndex to currentEmojis + emoji)
+                        }
+                    }
+                } else {
+                    // Practice mode - local only
+                    val currentEmojis = sentenceEmojis[sentenceIndex] ?: emptyList()
+                    sentenceEmojis = sentenceEmojis + (sentenceIndex to currentEmojis + emoji)
+                }
+                
                 showEmojiDialog = false
                 selectedSentenceForEmoji = null
             },

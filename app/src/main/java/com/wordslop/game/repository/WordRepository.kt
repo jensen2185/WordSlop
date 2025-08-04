@@ -9,29 +9,33 @@ import com.wordslop.game.model.WordType
 class WordRepository {
     
     private val nouns = listOf(
-        "cat", "dog", "house", "car", "tree", "book", "phone", "computer", 
-        "table", "chair", "window", "door", "water", "food", "music", 
-        "picture", "flower", "mountain", "ocean", "star", "moon", "sun",
-        "bird", "fish", "garden", "school", "friend", "family", "time"
+        "cat", "dog", "house", "clothes", "tree", "book", "phone", "people",
+        "job", "horse", "bed", "car", "water", "food", "music",
+        "picture", "flower", "mountain", "ocean", "girl", "man", "boy",
+        "bird", "fish", "underwear", "school", "friend", "family", "time",
+        "stick", "gun", "friend", "boss", "pants", "TV", "rock", "mom", "children",
+        "apple", "salad", "pizza", "fool", "scam", "monk", "hobo"
     )
     
     private val verbs = listOf(
-        "run", "jump", "sing", "dance", "read", "write", "play", "walk",
+        "run", "jump", "punch", "clean", "read", "write", "play", "walk",
         "swim", "fly", "laugh", "cry", "sleep", "eat", "drink", "think",
-        "speak", "listen", "watch", "learn", "teach", "build", "create",
-        "explore", "discover", "travel", "climb", "draw", "paint"
+        "speak", "listen", "watch", "lose", "ruin", "build", "create",
+        "trick", "dream", "say", "miss", "draw", "fall", "love",
+        "hate", "feel", "drink", "hurt", "take", "push"
     )
     
     private val adjectives = listOf(
         "big", "small", "happy", "sad", "fast", "slow", "hot", "cold",
-        "bright", "dark", "loud", "quiet", "smooth", "rough", "soft",
+        "huge", "dark", "loud", "quiet", "smooth", "rough", "soft",
         "hard", "sweet", "sour", "beautiful", "ugly", "strong", "weak",
-        "tall", "short", "wide", "narrow", "clean", "dirty", "fresh"
+        "tall", "short", "wide", "wet", "clean", "dirty", "fresh", "dry", "dumb",
+        "bad", "crazy", "poor", "silly", "funny"
     )
     
     private val conjunctions = listOf(
-        "and", "or", "but", "so", "yet", "for", "nor", "because", "since", 
-        "although", "while", "when", "if", "unless", "until"
+        "and", "or", "but", "so", "yet", "for", "then", "because", "since",
+        "although", "while", "when", "if", "unless", "until", "and"
     )
     
     private val prepositions = listOf(
@@ -102,7 +106,7 @@ class WordRepository {
     }
     
     /**
-     * Gets the 8 special always-present words
+     * Gets the 9 special always-present words
      */
     fun getSpecialWords(): List<Word> {
         return listOf(
@@ -113,7 +117,8 @@ class WordRepository {
             Word(1004, "to", WordType.PREPOSITION),
             Word(1005, "in", WordType.PREPOSITION),
             Word(1006, "the", WordType.ARTICLE),
-            Word(1007, "er", WordType.NOUN) // For comparatives/agent nouns (special styling)
+            Word(1007, "er", WordType.NOUN), // For comparatives/agent nouns (special styling)
+            Word(1008, "es", WordType.NOUN) // For plurals/verb conjugation (special styling)
         )
     }
 }

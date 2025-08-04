@@ -31,6 +31,11 @@ import com.wordslop.game.model.LobbyPlayer
 import com.wordslop.game.model.GameSettings
 import com.wordslop.game.model.GameStatus
 import com.wordslop.game.auth.UserInfo
+import com.wordslop.game.repository.LobbyRepository
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 sealed class Screen {
     object MainMenu : Screen()
@@ -62,7 +67,79 @@ fun WordslopApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.MainMenu) }
     var currentUser by remember { mutableStateOf<UserInfo?>(null) }
     var currentGameLobby by remember { mutableStateOf<GameLobby?>(null) }
-    var activePublicLobbies by remember { mutableStateOf<List<GameLobby>>(emptyList()) }
+    val lobbyRepository = remember { LobbyRepository() }
+    val scope = rememberCoroutineScope()
+    
+    // Only listen to Firestore when user is authenticated
+    val activePublicLobbies by if (currentUser != null) {
+        val user = currentUser
+        println("DEBUG MAIN: Setting up public lobbies flow for user ${user?.userId}")
+        val flow = lobbyRepository.getPublicLobbiesFlow()
+        flow.collectAsState(initial = emptyList())
+    } else {
+        println("DEBUG MAIN: No user authenticated, using empty lobby list")
+        remember { mutableStateOf(emptyList<GameLobby>()) }
+    }
+    
+    // Clean up orphaned lobbies on app start and periodically
+    LaunchedEffect(currentUser) {
+        if (currentUser != null) {
+            // Clean up immediately on sign in
+            lobbyRepository.cleanupOrphanedLobbies()
+            
+            // Then clean up every 30 seconds while app is running
+            while (currentUser != null) {
+                kotlinx.coroutines.delay(30000L) // 30 seconds
+                lobbyRepository.cleanupOrphanedLobbies()
+            }
+        }
+    }
+    
+    // Player heartbeat - keep active players' timestamps updated
+    LaunchedEffect(currentUser, currentGameLobby) {
+        val user = currentUser
+        val lobby = currentGameLobby
+        if (user != null && lobby != null) {
+            // Send heartbeat every 45 seconds while in lobby
+            while (currentGameLobby?.gameId == lobby.gameId && currentUser?.userId == user.userId) {
+                lobbyRepository.updatePlayerHeartbeat(lobby.gameId, user.userId)
+                kotlinx.coroutines.delay(45000L) // 45 seconds
+            }
+        }
+    }
+    
+    // Manual lobby refresh when in lobby (simpler approach to avoid listener loops)
+    currentGameLobby?.let { lobby ->
+        val user = currentUser
+        if (user != null) {
+            LaunchedEffect(currentScreen, lobby.gameId) {
+                if (currentScreen == Screen.GameLobby) {
+                    while (currentScreen == Screen.GameLobby) {
+                        kotlinx.coroutines.delay(2000L)
+                        println("DEBUG: Manual lobby refresh check")
+                        val result = lobbyRepository.getLobbyById(lobby.gameId)
+                        result.onSuccess { fetchedLobby ->
+                            if (fetchedLobby == null) {
+                                // Lobby was deleted, go back to main menu
+                                println("DEBUG: Lobby deleted, going to main menu")
+                                currentGameLobby = null
+                                currentScreen = Screen.MainMenu
+                            } else {
+                                // Update lobby state
+                                currentGameLobby = fetchedLobby
+                                
+                                // Check if game started
+                                if (fetchedLobby.gameStatus == GameStatus.IN_PROGRESS) {
+                                    println("DEBUG: Game started, navigating to game screen")
+                                    currentScreen = Screen.WordGame
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     Scaffold(
         modifier = Modifier
@@ -92,29 +169,44 @@ fun WordslopApp() {
                 currentUser?.let { user ->
                     JoinGameScreen(
                         userInfo = user,
-                        availableLobbies = activePublicLobbies.filter { it.isPublic && it.gameStatus == GameStatus.WAITING },
+                        availableLobbies = activePublicLobbies.filter { it.isPublic && it.gameStatus == GameStatus.WAITING }.also { lobbies ->
+                            println("DEBUG MAIN: JoinGameScreen receiving ${lobbies.size} available lobbies")
+                            lobbies.forEach { lobby ->
+                                println("DEBUG MAIN: - Lobby ${lobby.gameId}: ${lobby.hostUsername}, ${lobby.players.size}/${lobby.maxPlayers} players")
+                            }
+                        },
                         onBack = { currentScreen = Screen.MainMenu },
                         onJoinLobby = { selectedLobby ->
-                            // Add current user to the selected lobby
-                            val newPlayer = LobbyPlayer(
-                                userId = user.userId,
-                                username = user.gameUsername ?: user.displayName,
-                                isReady = false,
-                                isHost = false
-                            )
-                            
-                            val updatedLobby = selectedLobby.copy(
-                                players = selectedLobby.players + newPlayer
-                            )
-                            
-                            // Update the lobby in the active lobbies list
-                            activePublicLobbies = activePublicLobbies.map { lobby ->
-                                if (lobby.gameId == selectedLobby.gameId) updatedLobby else lobby
+                            println("DEBUG JOIN: Attempting to join lobby ${selectedLobby.gameId}")
+                            scope.launch {
+                                try {
+                                    val newPlayer = LobbyPlayer(
+                                        userId = user.userId,
+                                        username = user.gameUsername ?: user.displayName,
+                                        isReady = false,
+                                        isHost = false
+                                    )
+                                    
+                                    println("DEBUG JOIN: Created player: ${newPlayer.username} (${newPlayer.userId})")
+                                    
+                                    val result = lobbyRepository.joinLobby(selectedLobby.gameId, newPlayer)
+                                    result.onSuccess {
+                                        println("DEBUG JOIN: Successfully joined lobby!")
+                                        // Set the lobby immediately for navigation, real-time updates will sync the actual state
+                                        currentGameLobby = selectedLobby.copy(
+                                            players = selectedLobby.players + newPlayer
+                                        )
+                                        currentScreen = Screen.GameLobby
+                                    }.onFailure { error ->
+                                        // Handle error - could show a toast/dialog
+                                        println("DEBUG JOIN ERROR: Failed to join lobby: ${error.message}")
+                                        error.printStackTrace()
+                                    }
+                                } catch (e: Exception) {
+                                    println("DEBUG JOIN EXCEPTION: ${e.message}")
+                                    e.printStackTrace()
+                                }
                             }
-                            
-                            // Set as current lobby and go to lobby screen
-                            currentGameLobby = updatedLobby
-                            currentScreen = Screen.GameLobby
                         },
                         modifier = Modifier.padding(innerPadding)
                     )
@@ -129,35 +221,36 @@ fun WordslopApp() {
                     CreateGameScreen(
                         userInfo = user,
                         onGameCreated = { gameSettings ->
-                            // Create a new game lobby
-                            val gameId = "game_${System.currentTimeMillis()}"
-                            val hostPlayer = LobbyPlayer(
-                                userId = user.userId,
-                                username = user.gameUsername ?: user.displayName,
-                                isReady = false,
-                                isHost = true
-                            )
-                            
-                            val newLobby = GameLobby(
-                                gameId = gameId,
-                                hostUserId = user.userId,
-                                hostUsername = user.gameUsername ?: user.displayName,
-                                isPublic = gameSettings.isPublic,
-                                passcode = gameSettings.passcode,
-                                maxPlayers = gameSettings.maxPlayers,
-                                numberOfRounds = gameSettings.numberOfRounds,
-                                players = listOf(hostPlayer),
-                                gameStatus = GameStatus.WAITING
-                            )
-                            
-                            currentGameLobby = newLobby
-                            
-                            // Add to active lobbies if it's public
-                            if (gameSettings.isPublic) {
-                                activePublicLobbies = activePublicLobbies + newLobby
+                            scope.launch {
+                                val gameId = "game_${System.currentTimeMillis()}"
+                                val hostPlayer = LobbyPlayer(
+                                    userId = user.userId,
+                                    username = user.gameUsername ?: user.displayName,
+                                    isReady = false,
+                                    isHost = true
+                                )
+                                
+                                val newLobby = GameLobby(
+                                    gameId = gameId,
+                                    hostUserId = user.userId,
+                                    hostUsername = user.gameUsername ?: user.displayName,
+                                    isPublic = gameSettings.isPublic,
+                                    passcode = gameSettings.passcode,
+                                    maxPlayers = gameSettings.maxPlayers,
+                                    numberOfRounds = gameSettings.numberOfRounds,
+                                    players = listOf(hostPlayer),
+                                    gameStatus = GameStatus.WAITING
+                                )
+                                
+                                val result = lobbyRepository.createLobby(newLobby)
+                                result.onSuccess {
+                                    currentGameLobby = newLobby
+                                    currentScreen = Screen.GameLobby
+                                }.onFailure { error ->
+                                    // Handle error - could show a toast/dialog
+                                    println("Failed to create lobby: ${error.message}")
+                                }
                             }
-                            
-                            currentScreen = Screen.GameLobby
                         },
                         onBack = { currentScreen = Screen.MainMenu },
                         modifier = Modifier.padding(innerPadding)
@@ -175,70 +268,41 @@ fun WordslopApp() {
                             gameLobby = gameLobby,
                             currentUser = user,
                             onBack = { 
-                                // Remove current user from the lobby
-                                val remainingPlayers = gameLobby.players.filter { it.userId != user.userId }
-                                
-                                if (remainingPlayers.isEmpty()) {
-                                    // Delete lobby if no players remain
-                                    if (gameLobby.isPublic) {
-                                        activePublicLobbies = activePublicLobbies.filter { it.gameId != gameLobby.gameId }
-                                    }
-                                } else {
-                                    // Keep lobby alive with remaining players
-                                    val updatedLobby = gameLobby.copy(
-                                        players = remainingPlayers.mapIndexed { index, player ->
-                                            // Assign host to first remaining player if current host is leaving
-                                            if (gameLobby.hostUserId == user.userId && index == 0) {
-                                                player.copy(isHost = true)
-                                            } else {
-                                                player
-                                            }
-                                        },
-                                        // Update host info if needed
-                                        hostUserId = if (gameLobby.hostUserId == user.userId) {
-                                            remainingPlayers.firstOrNull()?.userId ?: gameLobby.hostUserId
-                                        } else {
-                                            gameLobby.hostUserId
-                                        },
-                                        hostUsername = if (gameLobby.hostUserId == user.userId) {
-                                            remainingPlayers.firstOrNull()?.username ?: gameLobby.hostUsername
-                                        } else {
-                                            gameLobby.hostUsername
-                                        }
-                                    )
-                                    
-                                    // Update the lobby in active lobbies list if it's public
-                                    if (gameLobby.isPublic) {
-                                        activePublicLobbies = activePublicLobbies.map { lobby ->
-                                            if (lobby.gameId == gameLobby.gameId) updatedLobby else lobby
-                                        }
+                                scope.launch {
+                                    val result = lobbyRepository.leaveLobby(gameLobby.gameId, user.userId)
+                                    result.onSuccess {
+                                        currentGameLobby = null
+                                        currentScreen = Screen.MainMenu
+                                    }.onFailure { error ->
+                                        // Handle error - could show a toast/dialog
+                                        println("Failed to leave lobby: ${error.message}")
+                                        // Still navigate back on error
+                                        currentGameLobby = null
+                                        currentScreen = Screen.MainMenu
                                     }
                                 }
-                                
-                                currentGameLobby = null
-                                currentScreen = Screen.MainMenu 
                             },
                             onReady = {
-                                // Update player ready status
-                                val updatedLobby = gameLobby.copy(
-                                    players = gameLobby.players.map { player ->
-                                        if (player.userId == user.userId) {
-                                            player.copy(isReady = true)
-                                        } else player
-                                    }
-                                )
-                                
-                                currentGameLobby = updatedLobby
-                                
-                                // Update the lobby in active lobbies list if it's public
-                                if (gameLobby.isPublic) {
-                                    activePublicLobbies = activePublicLobbies.map { lobby ->
-                                        if (lobby.gameId == gameLobby.gameId) updatedLobby else lobby
+                                scope.launch {
+                                    val result = lobbyRepository.updatePlayerReady(gameLobby.gameId, user.userId, true)
+                                    result.onFailure { error ->
+                                        // Handle error - could show a toast/dialog
+                                        println("Failed to update ready status: ${error.message}")
                                     }
                                 }
                             },
                             onStartGame = {
-                                currentScreen = Screen.WordGame
+                                scope.launch {
+                                    println("DEBUG: Host starting game for lobby ${gameLobby.gameId}")
+                                    val result = lobbyRepository.updateLobbyStatus(gameLobby.gameId, GameStatus.IN_PROGRESS)
+                                    result.onSuccess {
+                                        println("DEBUG: Host successfully updated lobby status, navigating to game")
+                                        currentScreen = Screen.WordGame
+                                    }.onFailure { error ->
+                                        // Handle error - could show a toast/dialog
+                                        println("DEBUG: Host failed to start game: ${error.message}")
+                                    }
+                                }
                             },
                             modifier = Modifier.padding(innerPadding)
                         )
@@ -252,7 +316,10 @@ fun WordslopApp() {
             Screen.WordGame -> {
                 WordGameScreen(
                     modifier = Modifier.padding(innerPadding),
+                    gameLobby = currentGameLobby, // Pass lobby for multiplayer context
+                    currentUser = currentUser,
                     onBackToMainMenu = {
+                        currentGameLobby = null
                         currentScreen = Screen.MainMenu
                     }
                 )
