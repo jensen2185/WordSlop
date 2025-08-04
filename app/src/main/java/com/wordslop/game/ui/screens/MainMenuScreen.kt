@@ -31,7 +31,8 @@ fun MainMenuScreen(
     modifier: Modifier = Modifier,
     onJoinGame: (UserInfo) -> Unit = {},
     onCreateGame: (UserInfo) -> Unit = {},
-    onPracticeMode: (UserInfo) -> Unit = {}
+    onPracticeMode: (UserInfo) -> Unit = {},
+    onSignOut: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val authManager = remember { FirebaseAuthManager(context) }
@@ -281,6 +282,7 @@ fun MainMenuScreen(
                                 userInfo = null
                                 errorMessage = null
                                 pendingGoogleUserInfo = null
+                                onSignOut() // Notify parent to clear game state
                             },
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = Color.White

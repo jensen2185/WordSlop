@@ -569,32 +569,44 @@ fun WordGameScreen(
                             containerColor = if (player.isReady) Color.Green.copy(alpha = 0.4f) else Color.Gray.copy(alpha = 0.3f)
                         ),
                         shape = RoundedCornerShape(4.dp),
-                        border = if (player.isReady) BorderStroke(1.dp, Color.Green) else null
+                        border = BorderStroke(1.dp, if (player.isReady) Color.Green else Color.Transparent) // Always have border to prevent layout shift
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier
-                                .fillMaxWidth()
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            // Player name with ready status
-                            Text(
-                                text = if (player.isReady) "${player.name} ✓" else player.name,
-                                color = if (player.isReady) Color.Green else Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = if (player.isReady) FontWeight.Bold else FontWeight.Normal
-                            )
-                            
-                            // Show points on the right side if player has any (gray, small)
-                            if (player.points > 0) {
+                            // Player name and ready status with fixed layout
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
                                 Text(
-                                    text = "${player.points} pts",
-                                    color = Color.Gray,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Medium
+                                    text = player.name,
+                                    color = if (player.isReady) Color.Green else Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (player.isReady) FontWeight.Bold else FontWeight.Normal
+                                )
+                                // Fixed-width ready indicator to prevent layout shifts
+                                Text(
+                                    text = if (player.isReady) "✓" else " ",
+                                    color = Color.Green,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(12.dp)
                                 )
                             }
+                            
+                            // Show points on the right side (fixed width to prevent layout shifts)
+                            Text(
+                                text = if (player.points > 0) "${player.points} pts" else "",
+                                color = Color.Gray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.width(40.dp),
+                                textAlign = TextAlign.End
+                            )
                         }
                     }
                 }
@@ -605,7 +617,8 @@ fun WordGameScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = if (timeLeft <= 10) Color.Red.copy(alpha = 0.3f) else Color.Blue.copy(alpha = 0.3f)
                 ),
-                shape = RoundedCornerShape(4.dp)
+                shape = RoundedCornerShape(4.dp),
+                border = BorderStroke(1.dp, Color.Transparent) // Consistent border to prevent layout shifts
             ) {
                 Text(
                     text = "${timeLeft}s",

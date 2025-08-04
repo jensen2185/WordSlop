@@ -39,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.flow.collect
 
 sealed class Screen {
     object MainMenu : Screen()
@@ -74,14 +75,20 @@ fun WordslopApp() {
     val scope = rememberCoroutineScope()
     
     // Only listen to Firestore when user is authenticated
-    val activePublicLobbies by if (currentUser != null) {
+    var activePublicLobbies by remember { mutableStateOf<List<GameLobby>>(emptyList()) }
+    
+    // Set up Firebase listener only when user is authenticated
+    LaunchedEffect(currentUser) {
         val user = currentUser
-        println("DEBUG MAIN: Setting up public lobbies flow for user ${user?.userId}")
-        val flow = lobbyRepository.getPublicLobbiesFlow()
-        flow.collectAsState(initial = emptyList())
-    } else {
-        println("DEBUG MAIN: No user authenticated, using empty lobby list")
-        remember { mutableStateOf(emptyList<GameLobby>()) }
+        if (user != null) {
+            println("DEBUG MAIN: Setting up public lobbies flow for user ${user.userId}")
+            lobbyRepository.getPublicLobbiesFlow().collect { lobbies ->
+                activePublicLobbies = lobbies
+            }
+        } else {
+            println("DEBUG MAIN: No user authenticated, clearing lobby list")
+            activePublicLobbies = emptyList()
+        }
     }
     
     // Clean up orphaned lobbies on app start and periodically (for all authenticated users)
@@ -171,6 +178,13 @@ fun WordslopApp() {
                     onPracticeMode = { user ->
                         currentUser = user
                         currentScreen = Screen.WordGame
+                    },
+                    onSignOut = {
+                        // Clear all game state when signing out
+                        currentUser = null
+                        currentGameLobby = null
+                        currentScreen = Screen.MainMenu
+                        activePublicLobbies = emptyList()
                     }
                 )
             }
