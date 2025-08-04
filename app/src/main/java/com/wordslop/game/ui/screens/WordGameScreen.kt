@@ -324,12 +324,6 @@ fun WordGameScreen(
                                 } catch (e: Exception) {
                                     println("DEBUG HOST: Failed to send signal: ${e.message}")
                                     // Fallback: end game locally if Firebase fails
-                                    players = players.map { 
-                                        it.copy(
-                                            points = it.points + it.currentRoundPoints,
-                                            currentRoundPoints = 0
-                                        )
-                                    }
                                     gamePhase = GamePhase.WINNER
                                 }
                             }
@@ -359,13 +353,7 @@ fun WordGameScreen(
                             )
                         }
                     } else {
-                        // Game finished - transfer final round points and show winner
-                        players = players.map { 
-                            it.copy(
-                                points = it.points + it.currentRoundPoints, // Transfer final round points to total
-                                currentRoundPoints = 0 // Reset round points
-                            )
-                        }
+                        // Game finished - show winner (keep currentRoundPoints for display)
                         gamePhase = GamePhase.WINNER
                     }
                 }
@@ -427,10 +415,12 @@ fun WordGameScreen(
                                         userVote = null
                                         sentenceEmojis = emptyMap()
                                         players = players.map { 
+                                            val newTotalPoints = it.points + it.currentRoundPoints
+                                            println("DEBUG ROUND: Player ${it.name} - old points: ${it.points}, round points: ${it.currentRoundPoints}, new total: $newTotalPoints")
                                             it.copy(
                                                 isReady = false, 
                                                 selectedWords = emptyList(),
-                                                points = it.points + it.currentRoundPoints,
+                                                points = newTotalPoints,
                                                 currentRoundPoints = 0
                                             )
                                         }
@@ -442,12 +432,6 @@ fun WordGameScreen(
                                 "end_game" -> {
                                     if (gamePhase == GamePhase.RESULTS) {
                                         println("DEBUG SIGNAL $playerType: Ending game")
-                                        players = players.map { 
-                                            it.copy(
-                                                points = it.points + it.currentRoundPoints,
-                                                currentRoundPoints = 0
-                                            )
-                                        }
                                         gamePhase = GamePhase.WINNER
                                         println("DEBUG SIGNAL $playerType: Successfully ended game")
                                     } else {
@@ -587,13 +571,31 @@ fun WordGameScreen(
                         shape = RoundedCornerShape(4.dp),
                         border = if (player.isReady) BorderStroke(1.dp, Color.Green) else null
                     ) {
-                        Text(
-                            text = if (player.isReady) "${player.name} ✓" else player.name,
-                            color = if (player.isReady) Color.Green else Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = if (player.isReady) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            // Player name with ready status
+                            Text(
+                                text = if (player.isReady) "${player.name} ✓" else player.name,
+                                color = if (player.isReady) Color.Green else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = if (player.isReady) FontWeight.Bold else FontWeight.Normal
+                            )
+                            
+                            // Show points on the right side if player has any (gray, small)
+                            if (player.points > 0) {
+                                Text(
+                                    text = "${player.points} pts",
+                                    color = Color.Gray,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1100,7 +1102,26 @@ fun WordGameScreen(
                                 // Calculate points from votes
                                 val voteCount = votes.values.groupingBy { it }.eachCount()
                                 
-                                // Create players with sentences and calculated points
+                                // Update main players list with vote results
+                                players = players.map { player ->
+                                    // Find this player's userId by matching username
+                                    val matchingGameState = gameReadyStates.entries.find { (_, gameState) ->
+                                        val username = gameState["username"] as? String
+                                        username == player.name || (username == currentUser?.gameUsername && player.name == "You")
+                                    }
+                                    
+                                    if (matchingGameState != null) {
+                                        val userId = matchingGameState.key
+                                        val votesReceived = voteCount[userId] ?: 0
+                                        println("DEBUG POINTS: Player ${player.name} (${userId}) received $votesReceived votes, current points: ${player.points}")
+                                        player.copy(currentRoundPoints = votesReceived)
+                                    } else {
+                                        println("DEBUG POINTS: No matching game state found for player ${player.name}")
+                                        player
+                                    }
+                                }
+                                
+                                // Create players with sentences and calculated points for display
                                 sortedPlayers = gameReadyStates.values.mapNotNull { gameState ->
                                     val selectedWords = gameState["selectedWords"] as? List<String>
                                     val username = gameState["username"] as? String
@@ -1170,27 +1191,28 @@ fun WordGameScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             
-                            // Username and points on the right side
+                            // Score and username on the right side  
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = player.name,
-                                    color = Color.Gray,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                
-                                // Previous points in yellow (if any)
+                                // Previous points (gray/transparent white)
                                 if (player.points > 0) {
                                     Text(
                                         text = "${player.points}",
-                                        color = Color.Yellow,
+                                        color = Color.White.copy(alpha = 0.6f),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
+                                
+                                // Username
+                                Text(
+                                    text = player.name,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                                 
                                 // Current round points in green with +
                                 if (player.currentRoundPoints > 0) {
