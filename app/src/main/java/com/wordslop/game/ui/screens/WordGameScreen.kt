@@ -324,6 +324,13 @@ fun WordGameScreen(
                                 } catch (e: Exception) {
                                     println("DEBUG HOST: Failed to send signal: ${e.message}")
                                     // Fallback: end game locally if Firebase fails
+                                    // Accumulate final round points first
+                                    players = players.map { 
+                                        it.copy(
+                                            points = it.points + it.currentRoundPoints,
+                                            currentRoundPoints = 0
+                                        )
+                                    }
                                     gamePhase = GamePhase.WINNER
                                 }
                             }
@@ -353,7 +360,13 @@ fun WordGameScreen(
                             )
                         }
                     } else {
-                        // Game finished - show winner (keep currentRoundPoints for display)
+                        // Game finished - accumulate final round points and show winner
+                        players = players.map { 
+                            it.copy(
+                                points = it.points + it.currentRoundPoints,
+                                currentRoundPoints = 0
+                            )
+                        }
                         gamePhase = GamePhase.WINNER
                     }
                 }
@@ -432,6 +445,13 @@ fun WordGameScreen(
                                 "end_game" -> {
                                     if (gamePhase == GamePhase.RESULTS) {
                                         println("DEBUG SIGNAL $playerType: Ending game")
+                                        // Accumulate final round points first
+                                        players = players.map { 
+                                            it.copy(
+                                                points = it.points + it.currentRoundPoints,
+                                                currentRoundPoints = 0
+                                            )
+                                        }
                                         gamePhase = GamePhase.WINNER
                                         println("DEBUG SIGNAL $playerType: Successfully ended game")
                                     } else {
@@ -504,7 +524,9 @@ fun WordGameScreen(
                                 
                                 localPlayer.copy(
                                     isReady = newReadyStatus,
-                                    selectedWords = newWords
+                                    selectedWords = newWords,
+                                    points = localPlayer.points, // Preserve existing points
+                                    currentRoundPoints = localPlayer.currentRoundPoints // Preserve current round points
                                 )
                             } else {
                                 localPlayer
@@ -546,7 +568,9 @@ fun WordGameScreen(
         
         // Player status and timer row
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp), // Fixed height to prevent layout shifts
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1117,10 +1141,20 @@ fun WordGameScreen(
                                 
                                 // Update main players list with vote results
                                 players = players.map { player ->
-                                    // Find this player's userId by matching username
+                                    // Find this player's userId by matching username  
                                     val matchingGameState = gameReadyStates.entries.find { (_, gameState) ->
                                         val username = gameState["username"] as? String
-                                        username == player.name || (username == currentUser?.gameUsername && player.name == "You")
+                                        when {
+                                            // Direct match for other players
+                                            username == player.name -> true
+                                            // Current user: try multiple matching strategies
+                                            player.name == "You" -> {
+                                                username == currentUser?.gameUsername || 
+                                                username == currentUser?.displayName ||
+                                                username == (currentUser?.gameUsername ?: currentUser?.displayName)
+                                            }
+                                            else -> false
+                                        }
                                     }
                                     
                                     if (matchingGameState != null) {
@@ -1130,6 +1164,10 @@ fun WordGameScreen(
                                         player.copy(currentRoundPoints = votesReceived)
                                     } else {
                                         println("DEBUG POINTS: No matching game state found for player ${player.name}")
+                                        if (player.name == "You") {
+                                            println("DEBUG POINTS: Current user details - gameUsername: '${currentUser?.gameUsername}', displayName: '${currentUser?.displayName}'")
+                                            println("DEBUG POINTS: Available usernames in Firebase: ${gameReadyStates.values.map { (it["username"] as? String) ?: "null" }}")
+                                        }
                                         player
                                     }
                                 }
