@@ -14,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -98,16 +100,59 @@ fun WordslopApp() {
             // Clean up immediately on sign in
             lobbyRepository.cleanupOrphanedLobbies()
             
-            // Then clean up every 15 seconds while app is running
+            // Then clean up periodically while app is running
+            // More frequent cleanup during active games for disconnect detection
             while (currentUser != null) {
-                kotlinx.coroutines.delay(15000L) // 15 seconds
-                lobbyRepository.cleanupOrphanedLobbies()
+                // Always use 5 second cleanup for better disconnect detection
+                val cleanupInterval = 5000L
+                
+                kotlinx.coroutines.delay(cleanupInterval)
+                println("DEBUG: Running cleanup (interval: ${cleanupInterval}ms, screen: $currentScreen)")
+                val cleanupResult = lobbyRepository.cleanupOrphanedLobbies()
+                cleanupResult.onFailure { e ->
+                    println("DEBUG: Cleanup failed: ${e.message}")
+                }
             }
         }
     }
     
-    // Player heartbeat - keep active players' timestamps updated (only when actively in lobby screen)
+    // Handle app lifecycle - leave lobby when app goes to background
     val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(currentUser, currentGameLobby, lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    // App going to background, leave the lobby
+                    val user = currentUser
+                    val lobby = currentGameLobby
+                    if (user != null && lobby != null && (currentScreen == Screen.GameLobby || currentScreen == Screen.WordGame)) {
+                        println("DEBUG LIFECYCLE: App paused, leaving lobby ${lobby.gameId}")
+                        scope.launch {
+                            lobbyRepository.leaveLobby(lobby.gameId, user.userId)
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> {
+                    // Additional safety for when app is stopped
+                    val user = currentUser
+                    val lobby = currentGameLobby
+                    if (user != null && lobby != null) {
+                        println("DEBUG LIFECYCLE: App stopped, ensuring left lobby ${lobby.gameId}")
+                        scope.launch {
+                            lobbyRepository.leaveLobby(lobby.gameId, user.userId)
+                        }
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    
+    // Player heartbeat - keep active players' timestamps updated (only when actively in lobby screen)
     LaunchedEffect(currentUser, currentGameLobby, currentScreen, lifecycleOwner) {
         val user = currentUser
         val lobby = currentGameLobby
@@ -117,36 +162,58 @@ fun WordslopApp() {
                 while (currentGameLobby?.gameId == lobby.gameId && 
                        currentUser?.userId == user.userId &&
                        (currentScreen == Screen.GameLobby || currentScreen == Screen.WordGame)) {
-                    println("DEBUG HEARTBEAT: Sending heartbeat for ${user.gameUsername} in lobby ${lobby.gameId} (screen: $currentScreen)")
+                    
+                    // Faster heartbeat during active gameplay for disconnect detection
+                    val heartbeatInterval = when (currentScreen) {
+                        Screen.WordGame -> 3000L  // 3 seconds during gameplay
+                        Screen.GameLobby -> 10000L // 10 seconds in lobby
+                        else -> 30000L
+                    }
+                    
+                    println("DEBUG HEARTBEAT: Sending heartbeat for ${user.gameUsername} in lobby ${lobby.gameId} (screen: $currentScreen, interval: ${heartbeatInterval}ms)")
                     lobbyRepository.updatePlayerHeartbeat(lobby.gameId, user.userId)
-                    kotlinx.coroutines.delay(30000L) // 30 seconds
+                    kotlinx.coroutines.delay(heartbeatInterval)
                 }
             }
         }
     }
     
-    // Manual lobby refresh when in lobby (simpler approach to avoid listener loops)
+    // Real-time lobby observation when in lobby or game
     currentGameLobby?.let { lobby ->
         val user = currentUser
         if (user != null) {
             LaunchedEffect(currentScreen, lobby.gameId) {
-                if (currentScreen == Screen.GameLobby) {
-                    while (currentScreen == Screen.GameLobby) {
-                        kotlinx.coroutines.delay(2000L)
-                        println("DEBUG: Manual lobby refresh check")
-                        val result = lobbyRepository.getLobbyById(lobby.gameId)
-                        result.onSuccess { fetchedLobby ->
-                            if (fetchedLobby == null) {
-                                // Lobby was deleted, go back to main menu
-                                println("DEBUG: Lobby deleted, going to main menu")
+                if (currentScreen == Screen.GameLobby || currentScreen == Screen.WordGame) {
+                    println("DEBUG: Starting real-time lobby observation for ${lobby.gameId}")
+                    lobbyRepository.getLobbyFlow(lobby.gameId).collect { fetchedLobby ->
+                        if (fetchedLobby == null) {
+                            // Lobby was deleted or user removed, go back to main menu
+                            println("DEBUG: Lobby deleted or unavailable, going to main menu")
+                            currentGameLobby = null
+                            currentScreen = Screen.MainMenu
+                        } else {
+                            // Check if current user is still in the lobby
+                            val stillInLobby = fetchedLobby.players.any { it.userId == user.userId }
+                            if (!stillInLobby && currentScreen != Screen.MainMenu) {
+                                println("DEBUG: Current user removed from lobby, going to main menu")
                                 currentGameLobby = null
                                 currentScreen = Screen.MainMenu
                             } else {
-                                // Update lobby state
+                                // Update lobby state with real-time data
+                                val oldPlayerCount = currentGameLobby?.players?.size ?: 0
+                                val newPlayerCount = fetchedLobby.players.size
+                                
+                                if (oldPlayerCount != newPlayerCount) {
+                                    println("DEBUG: Player count changed from $oldPlayerCount to $newPlayerCount")
+                                    fetchedLobby.players.forEach { player ->
+                                        println("DEBUG: - ${player.username} (ready: ${player.isReady}, host: ${player.isHost})")
+                                    }
+                                }
+                                
                                 currentGameLobby = fetchedLobby
                                 
-                                // Check if game started
-                                if (fetchedLobby.gameStatus == GameStatus.IN_PROGRESS) {
+                                // Check if game started while in lobby
+                                if (currentScreen == Screen.GameLobby && fetchedLobby.gameStatus == GameStatus.IN_PROGRESS) {
                                     println("DEBUG: Game started, navigating to game screen")
                                     currentScreen = Screen.WordGame
                                 }

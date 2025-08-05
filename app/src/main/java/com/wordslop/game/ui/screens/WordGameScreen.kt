@@ -577,6 +577,46 @@ fun WordGameScreen(
         }
     }
     
+    // Real-time lobby observation to update players list when someone disconnects
+    if (gameLobby != null && lobbyRepository != null) {
+        LaunchedEffect(gameLobby.gameId) {
+            println("DEBUG GAME: Starting real-time lobby observation for player updates")
+            lobbyRepository.getLobbyFlow(gameLobby.gameId).collect { updatedLobby ->
+                if (updatedLobby != null) {
+                    // Update players list based on who's still in the lobby
+                    val updatedPlayers = updatedLobby.players.map { lobbyPlayer ->
+                        // Find existing player to preserve their game state (isReady, points, etc.)
+                        val existingPlayer = players.find { 
+                            (lobbyPlayer.userId == currentUser?.userId && it.name == "You") ||
+                            (lobbyPlayer.userId != currentUser?.userId && it.name == lobbyPlayer.username)
+                        }
+                        
+                        Player(
+                            name = if (lobbyPlayer.userId == currentUser?.userId) "You" else lobbyPlayer.username,
+                            isReady = existingPlayer?.isReady ?: false,
+                            selectedWords = existingPlayer?.selectedWords ?: emptyList(),
+                            points = existingPlayer?.points ?: 0,
+                            currentRoundPoints = existingPlayer?.currentRoundPoints ?: 0
+                        )
+                    }
+                    
+                    // Only update if there are actual changes
+                    if (updatedPlayers.size != players.size || 
+                        !updatedPlayers.all { updatedPlayer ->
+                            players.any { it.name == updatedPlayer.name }
+                        }) {
+                        println("DEBUG GAME: Player list changed from ${players.size} to ${updatedPlayers.size} players")
+                        players.forEach { player -> println("DEBUG GAME: Old player: ${player.name}") }
+                        updatedPlayers.forEach { player -> println("DEBUG GAME: New player: ${player.name}") }
+                        players = updatedPlayers
+                    }
+                } else {
+                    println("DEBUG GAME: Lobby no longer exists - should return to main menu")
+                }
+            }
+        }
+    }
+    
     when (gamePhase) {
         GamePhase.PLAYING -> {
             // Original word game UI

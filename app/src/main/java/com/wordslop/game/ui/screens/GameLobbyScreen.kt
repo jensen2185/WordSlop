@@ -37,7 +37,8 @@ fun GameLobbyScreen(
     val currentPlayer = gameLobby.players.find { it.userId == currentUser.userId }
     val isHost = currentPlayer?.isHost == true
     val allNonHostPlayersReady = gameLobby.players.filter { !it.isHost }.all { it.isReady }
-    val canStartGame = isHost && allNonHostPlayersReady && gameLobby.players.size >= 2 // Host can start when all non-host players are ready
+    val onlyOnePlayer = gameLobby.players.size == 1
+    val canStartGame = isHost && allNonHostPlayersReady && gameLobby.players.size >= 2 // Need at least 2 players
     val isFullLobby = gameLobby.players.size >= gameLobby.maxPlayers
     
     // Auto-start countdown when lobby is full
@@ -257,7 +258,17 @@ fun GameLobbyScreen(
                 }
             }
             
-            if (isHost && !canStartGame && gameLobby.players.size > 1 && autoStartCountdown == null) {
+            if (isHost && gameLobby.players.size == 1 && autoStartCountdown == null) {
+                Text(
+                    text = "Need at least 2 players to start",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                )
+            } else if (isHost && !canStartGame && gameLobby.players.size > 1 && autoStartCountdown == null) {
                 Text(
                     text = "Waiting for other players to be ready...",
                     fontSize = 14.sp,
@@ -331,7 +342,7 @@ fun GameLobbyScreen(
             },
             text = {
                 Text(
-                    text = "2 players needed to begin game",
+                    text = "2 players needed to start",
                     color = Color.Gray
                 )
             },
