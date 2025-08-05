@@ -48,6 +48,16 @@ fun MainMenuScreen(
     
     val isLoggedIn = userInfo != null
     
+    // Online users tracking for testing coordination (only when logged in)
+    val onlineUsers by remember(isLoggedIn) {
+        if (isLoggedIn) {
+            lobbyRepository.getOnlineUsersFlow()
+        } else {
+            kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+    }.collectAsState(initial = emptyList())
+    val onlineUserCount = onlineUsers.size
+    
     // Google Sign-In launcher
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -94,6 +104,17 @@ fun MainMenuScreen(
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
+            
+            // Online users counter for testing coordination (only show when logged in)
+            if (isLoggedIn) {
+                Text(
+                    text = "Users online: $onlineUserCount",
+                    fontSize = 14.sp,
+                    color = if (onlineUserCount > 1) Color(0xFF10B981) else Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
             
             Text(
                 text = "Get your slop fix",

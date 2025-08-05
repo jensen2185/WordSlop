@@ -129,6 +129,28 @@ fun WordGameScreen(
     var selectedSentenceForEmoji by remember { mutableStateOf<Int?>(null) }
     var sentenceEmojis by remember { mutableStateOf<Map<Int, List<String>>>(emptyMap()) }
     
+    // Check if current user is a spectator (updated reactively)
+    var isSpectator by remember { 
+        val initialSpectatorStatus = gameLobby?.players?.find { it.userId == currentUser?.userId }?.isSpectator == true
+        println("DEBUG SPECTATOR: INITIAL spectator status = $initialSpectatorStatus for user ${currentUser?.userId}")
+        mutableStateOf(initialSpectatorStatus)
+    }
+    
+    // Update spectator status when lobby changes
+    LaunchedEffect(gameLobby?.players) {
+        gameLobby?.let { lobby ->
+            val player = lobby.players.find { it.userId == currentUser?.userId }
+            val wasSpectator = isSpectator
+            isSpectator = player?.isSpectator == true
+            println("DEBUG SPECTATOR: Updated spectator status from $wasSpectator to $isSpectator for user ${currentUser?.userId}")
+            println("DEBUG SPECTATOR: Player data: ${player?.toString()}")
+            println("DEBUG SPECTATOR: Lobby has ${lobby.players.size} players: ${lobby.players.map { "${it.username}(spectator=${it.isSpectator})" }}")
+            if (wasSpectator && !isSpectator) {
+                println("DEBUG SPECTATOR: PROMOTED FROM SPECTATOR TO PLAYER! Current phase: $gamePhase, round: $currentRound")
+            }
+        }
+    }
+    
     // Initialize players based on mode (multiplayer vs practice)
     var players by remember { 
         mutableStateOf(
@@ -207,15 +229,23 @@ fun WordGameScreen(
         4
     }
     
-    // Timer countdown effect for playing phase
-    LaunchedEffect(gamePhase) {
-        if (gamePhase == GamePhase.PLAYING) {
+    // Timer countdown effect for playing phase (disabled for spectators)
+    LaunchedEffect(gamePhase, isSpectator) {
+        if (gamePhase == GamePhase.PLAYING && !isSpectator) {
             while (timeLeft > 0 && gamePhase == GamePhase.PLAYING) {
                 kotlinx.coroutines.delay(1000L)
                 timeLeft--
                 
-                // Check if all players are ready
-                if (players.all { it.isReady }) {
+                // Check if all non-spectator players are ready (in practice mode, only check non-spectator players)
+                val nonSpectatorPlayers = if (gameLobby != null) {
+                    players.filterIndexed { index, _ ->
+                        gameLobby.players.getOrNull(index)?.isSpectator == false
+                    }
+                } else {
+                    players.filter { it.name != "You" || !isSpectator }
+                }
+                
+                if (nonSpectatorPlayers.all { it.isReady }) {
                     gamePhase = GamePhase.VOTING
                     break
                 }
@@ -227,9 +257,9 @@ fun WordGameScreen(
         }
     }
     
-    // Voting timer countdown effect
-    LaunchedEffect(gamePhase) {
-        if (gamePhase == GamePhase.VOTING) {
+    // Voting timer countdown effect (disabled for spectators)
+    LaunchedEffect(gamePhase, isSpectator) {
+        if (gamePhase == GamePhase.VOTING && !isSpectator) {
             while (votingTimeLeft > 0 && gamePhase == GamePhase.VOTING) {
                 kotlinx.coroutines.delay(1000L)
                 votingTimeLeft--
@@ -238,8 +268,9 @@ fun WordGameScreen(
                 if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                     val votingResult = lobbyRepository.getVotingResults(gameLobby.gameId)
                     votingResult.onSuccess { votes ->
-                        // Check if all players have voted (number of votes equals number of players)
-                        if (votes.size >= gameLobby.players.size) {
+                        // Check if all non-spectator players have voted
+                        val nonSpectatorCount = gameLobby.players.count { !it.isSpectator }
+                        if (votes.size >= nonSpectatorCount) {
                             gamePhase = GamePhase.RESULTS
                             return@LaunchedEffect
                         }
@@ -255,9 +286,9 @@ fun WordGameScreen(
         }
     }
     
-    // Results timer countdown effect
-    LaunchedEffect(gamePhase) {
-        if (gamePhase == GamePhase.RESULTS) {
+    // Results timer countdown effect (disabled for spectators)
+    LaunchedEffect(gamePhase, isSpectator) {
+        if (gamePhase == GamePhase.RESULTS && !isSpectator) {
             while (resultsTimeLeft > 0 && gamePhase == GamePhase.RESULTS) {
                 kotlinx.coroutines.delay(1000L)
                 resultsTimeLeft--
@@ -277,6 +308,15 @@ fun WordGameScreen(
                                 // Clear old voting data first
                                 lobbyRepository.clearVotingData(gameLobby.gameId)
                                 
+                                // Promote spectators to regular players at the start of new round
+                                println("DEBUG HOST: Promoting spectators to players for round ${currentRound + 1}")
+                                val promotionResult = lobbyRepository.promoteSpectatorsToPlayers(gameLobby.gameId)
+                                promotionResult.onSuccess {
+                                    println("DEBUG HOST: Successfully promoted spectators")
+                                }.onFailure { error ->
+                                    println("DEBUG HOST: Failed to promote spectators: ${error.message}")
+                                }
+                                
                                 // Signal next round to non-host players
                                 val roundSignal = mapOf(
                                     "action" to "next_round",
@@ -286,7 +326,7 @@ fun WordGameScreen(
                                 
                                 try {
                                     FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).set(roundSignal).await()
-                                    println("DEBUG HOST: Successfully sent next round signal")
+                                    println("DEBUG HOST: Successfully sent next round signal for round ${currentRound + 1} at timestamp ${roundSignal["timestamp"]}")
                                 } catch (e: Exception) {
                                     println("DEBUG HOST: Failed to send signal: ${e.message}")
                                     // Fallback: advance locally if Firebase fails
@@ -330,6 +370,10 @@ fun WordGameScreen(
                                             points = it.points + it.currentRoundPoints,
                                             currentRoundPoints = 0
                                         )
+                                    }
+                                    // Update lobby status to FINISHED when game ends (host fallback)
+                                    scope.launch {
+                                        lobbyRepository.updateLobbyStatus(gameLobby.gameId, GameStatus.FINISHED)
                                     }
                                     gamePhase = GamePhase.WINNER
                                 }
@@ -413,8 +457,8 @@ fun WordGameScreen(
                             
                             when (action) {
                                 "next_round" -> {
-                                    if (gamePhase == GamePhase.RESULTS && round != null) {
-                                        println("DEBUG SIGNAL $playerType: Advancing to next round ($round)")
+                                    if (round != null) {
+                                        println("DEBUG SIGNAL $playerType: FORCING advance to next round ($round) - isSpectator: $isSpectator, currentPhase: $gamePhase")
                                         
                                         // Advance to next round
                                         currentRound = round
@@ -437,9 +481,9 @@ fun WordGameScreen(
                                                 currentRoundPoints = 0
                                             )
                                         }
-                                        println("DEBUG SIGNAL $playerType: Successfully advanced to round $round")
+                                        println("DEBUG SIGNAL $playerType: Successfully FORCED advance to round $round")
                                     } else {
-                                        println("DEBUG SIGNAL $playerType: Skipping next_round - wrong phase ($gamePhase) or null round")
+                                        println("DEBUG SIGNAL $playerType: Skipping next_round - null round")
                                     }
                                 }
                                 "end_game" -> {
@@ -451,6 +495,10 @@ fun WordGameScreen(
                                                 points = it.points + it.currentRoundPoints,
                                                 currentRoundPoints = 0
                                             )
+                                        }
+                                        // Update lobby status to FINISHED when game ends (signal processing)
+                                        scope.launch {
+                                            lobbyRepository.updateLobbyStatus(gameLobby.gameId, GameStatus.FINISHED)
                                         }
                                         gamePhase = GamePhase.WINNER
                                         println("DEBUG SIGNAL $playerType: Successfully ended game")
@@ -515,9 +563,9 @@ fun WordGameScreen(
     if (gameLobby != null && currentUser != null && lobbyRepository != null) {
         val updatedLobby by lobbyRepository.getLobbyFlow(gameLobby.gameId).collectAsState(initial = gameLobby)
         
-        // Periodic sync for ready states during playing phase (every 2 seconds)
-        LaunchedEffect(gamePhase) {
-            if (gamePhase == GamePhase.PLAYING) {
+        // Periodic sync for ready states during playing phase (every 2 seconds) - disabled for spectators
+        LaunchedEffect(gamePhase, isSpectator) {
+            if (gamePhase == GamePhase.PLAYING && !isSpectator) {
                 while (gamePhase == GamePhase.PLAYING) {
                     kotlinx.coroutines.delay(2000L)
                     println("DEBUG GAME: Periodic sync - checking ready states")
@@ -560,12 +608,14 @@ fun WordGameScreen(
                             players = updatedPlayers
                         }
                         
-                        // Check if all players are ready for voting
-                        val allPlayersReady = gameReadyStates.values.all { 
+                        // Check if all non-spectator players are ready for voting
+                        val nonSpectatorPlayerIds = gameLobby.players.filter { !it.isSpectator }.map { it.userId }
+                        val nonSpectatorReadyStates = gameReadyStates.filterKeys { it in nonSpectatorPlayerIds }
+                        val allNonSpectatorsReady = nonSpectatorReadyStates.values.all { 
                             it["isReady"] as? Boolean ?: false 
                         }
-                        if (allPlayersReady && gameReadyStates.size >= 2) {
-                            println("DEBUG GAME: All players ready, proceeding to voting")
+                        if (allNonSpectatorsReady && nonSpectatorReadyStates.size >= 2) {
+                            println("DEBUG GAME: All non-spectator players ready, proceeding to voting")
                             gamePhase = GamePhase.VOTING
                             return@LaunchedEffect
                         }
@@ -600,6 +650,16 @@ fun WordGameScreen(
                         )
                     }
                     
+                    // Update spectator status for current user
+                    val currentUserLobbyPlayer = updatedLobby.players.find { it.userId == currentUser?.userId }
+                    if (currentUserLobbyPlayer != null) {
+                        val newSpectatorStatus = currentUserLobbyPlayer.isSpectator
+                        if (newSpectatorStatus != isSpectator) {
+                            println("DEBUG GAME: Spectator status changed for current user: $isSpectator -> $newSpectatorStatus")
+                            isSpectator = newSpectatorStatus
+                        }
+                    }
+                    
                     // Only update if there are actual changes
                     if (updatedPlayers.size != players.size || 
                         !updatedPlayers.all { updatedPlayer ->
@@ -617,6 +677,65 @@ fun WordGameScreen(
         }
     }
     
+    // Spectator overlay component
+    @Composable
+    fun SpectatorOverlay(phase: GamePhase) {
+        if (isSpectator && (phase == GamePhase.PLAYING || phase == GamePhase.VOTING)) {
+            println("DEBUG SPECTATOR: SHOWING OVERLAY for phase $phase, isSpectator=$isSpectator")
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.8f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFF1F2937)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "👀",
+                            fontSize = 48.sp
+                        )
+                        Text(
+                            text = when (phase) {
+                                GamePhase.PLAYING -> "Waiting for next round to begin"
+                                GamePhase.VOTING -> "Watching voting in progress"
+                                GamePhase.RESULTS -> "Waiting for next round to begin"
+                                else -> "Waiting..."
+                            },
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "You'll be able to play starting next round!",
+                            color = Color.Gray,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Button(
+                            onClick = { onBackToMainMenu?.invoke() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Main Menu")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     when (gamePhase) {
         GamePhase.PLAYING -> {
             // Original word game UI
@@ -935,7 +1054,7 @@ fun WordGameScreen(
                             }
                         }
                     },
-                    enabled = gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
+                    enabled = !isSpectator && gamePhase == GamePhase.PLAYING && arrangedWords.isNotEmpty() && !players.first { it.name == "You" }.isReady,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF10B981) // Modern green
                     )
@@ -979,6 +1098,9 @@ fun WordGameScreen(
             }
                 }
             }
+            
+            // Spectator overlay for PLAYING phase
+            SpectatorOverlay(GamePhase.PLAYING)
 
         }
         
@@ -1057,7 +1179,7 @@ fun WordGameScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = userVote == null) {
+                            .clickable(enabled = !isSpectator && userVote == null) {
                                 // Check if user is trying to vote for their own sentence
                                 val isOwnSentence = if (gameLobby != null && currentUser != null && lobbyRepository != null) {
                                     player.name == (currentUser.gameUsername ?: currentUser.displayName)
@@ -1134,9 +1256,19 @@ fun WordGameScreen(
                     )
                 }
             }
+            
+            // Spectator overlay for VOTING phase
+            SpectatorOverlay(GamePhase.VOTING)
         }
         
         GamePhase.RESULTS -> {
+            // Debug logging for spectators stuck at results
+            LaunchedEffect(resultsTimeLeft, isSpectator) {
+                if (isSpectator && resultsTimeLeft <= 0) {
+                    println("DEBUG SPECTATOR: STUCK AT RESULTS! resultsTimeLeft=$resultsTimeLeft, isSpectator=$isSpectator, currentRound=$currentRound")
+                }
+            }
+            
             // Results screen - formatted like voting screen for 6 players
             Column(
                 modifier = modifier
@@ -1341,6 +1473,7 @@ fun WordGameScreen(
                     }
                 }
             }
+            
         }
         
         GamePhase.WINNER -> {

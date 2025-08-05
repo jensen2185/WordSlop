@@ -141,16 +141,29 @@ private fun GameLobbyCard(
                         color = Color.Gray
                     )
                 }
+                
+                // Game status indicator
+                if (lobby.gameStatus == GameStatus.IN_PROGRESS) {
+                    Text(
+                        text = "In Progress",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9800)
+                    )
+                }
             }
             
             // Right side - Join button
             Button(
                 onClick = onJoin,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = if (lobby.gameStatus == GameStatus.IN_PROGRESS) 
+                        Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
                 )
             ) {
-                Text("Join")
+                Text(
+                    if (lobby.gameStatus == GameStatus.IN_PROGRESS) "Watch" else "Join"
+                )
             }
         }
     }

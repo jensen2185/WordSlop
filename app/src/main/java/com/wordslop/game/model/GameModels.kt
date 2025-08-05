@@ -25,6 +25,7 @@ data class LobbyPlayer(
     val username: String,
     val isReady: Boolean = false,
     val isHost: Boolean = false,
+    val isSpectator: Boolean = false,
     val joinedAt: Long = System.currentTimeMillis()
 )
 

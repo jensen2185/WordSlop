@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +35,10 @@ import com.wordslop.game.auth.UserInfo
 import com.wordslop.game.repository.LobbyRepository
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.collect
@@ -78,6 +78,7 @@ fun WordslopApp() {
     
     // Only listen to Firestore when user is authenticated
     var activePublicLobbies by remember { mutableStateOf<List<GameLobby>>(emptyList()) }
+    var joinErrorMessage by remember { mutableStateOf<String?>(null) }
     
     // Set up Firebase listener only when user is authenticated
     LaunchedEffect(currentUser) {
@@ -90,6 +91,36 @@ fun WordslopApp() {
         } else {
             println("DEBUG MAIN: No user authenticated, clearing lobby list")
             activePublicLobbies = emptyList()
+        }
+    }
+    
+    // User presence heartbeat system for online tracking
+    LaunchedEffect(currentUser) {
+        val user = currentUser
+        if (user != null) {
+            println("DEBUG PRESENCE: Starting heartbeat for user ${user.userId}")
+            
+            // Initial presence update
+            lobbyRepository.updateUserPresence(user.userId, user.gameUsername ?: user.displayName)
+            
+            // Heartbeat every 30 seconds
+            while (true) {
+                kotlinx.coroutines.delay(30000L) // 30 seconds
+                val result = lobbyRepository.updateUserPresence(user.userId, user.gameUsername ?: user.displayName)
+                result.onFailure { error ->
+                    println("DEBUG PRESENCE: Failed to update heartbeat: ${error.message}")
+                }
+            }
+        }
+    }
+    
+    // Clean up presence when user logs out
+    LaunchedEffect(currentUser) {
+        val user = currentUser
+        if (user == null) {
+            // User logged out - clean up any presence data
+            // This will be handled by the cleanup logic in the presence tracking
+            println("DEBUG PRESENCE: User logged out, presence will be cleaned up automatically")
         }
     }
     
@@ -129,6 +160,24 @@ fun WordslopApp() {
                         println("DEBUG LIFECYCLE: App paused, leaving lobby ${lobby.gameId}")
                         scope.launch {
                             lobbyRepository.leaveLobby(lobby.gameId, user.userId)
+                        }
+                    }
+                    
+                    // Clean up user presence
+                    if (user != null) {
+                        println("DEBUG PRESENCE: App paused, cleaning up presence for ${user.userId}")
+                        scope.launch {
+                            lobbyRepository.removeUserPresence(user.userId)
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    // App resumed, update presence
+                    val user = currentUser
+                    if (user != null) {
+                        println("DEBUG PRESENCE: App resumed, updating presence for ${user.userId}")
+                        scope.launch {
+                            lobbyRepository.updateUserPresence(user.userId, user.gameUsername ?: user.displayName)
                         }
                     }
                 }
@@ -260,7 +309,7 @@ fun WordslopApp() {
                 currentUser?.let { user ->
                     JoinGameScreen(
                         userInfo = user,
-                        availableLobbies = activePublicLobbies.filter { it.isPublic && it.gameStatus == GameStatus.WAITING }.also { lobbies ->
+                        availableLobbies = activePublicLobbies.filter { it.isPublic && (it.gameStatus == GameStatus.WAITING || it.gameStatus == GameStatus.IN_PROGRESS) }.also { lobbies ->
                             println("DEBUG MAIN: JoinGameScreen receiving ${lobbies.size} available lobbies")
                             lobbies.forEach { lobby ->
                                 println("DEBUG MAIN: - Lobby ${lobby.gameId}: ${lobby.hostUsername}, ${lobby.players.size}/${lobby.maxPlayers} players")
@@ -275,7 +324,8 @@ fun WordslopApp() {
                                         userId = user.userId,
                                         username = user.gameUsername ?: user.displayName,
                                         isReady = false,
-                                        isHost = false
+                                        isHost = false,
+                                        isSpectator = selectedLobby.gameStatus == GameStatus.IN_PROGRESS
                                     )
                                     
                                     println("DEBUG JOIN: Created player: ${newPlayer.username} (${newPlayer.userId})")
@@ -289,13 +339,15 @@ fun WordslopApp() {
                                         )
                                         currentScreen = Screen.GameLobby
                                     }.onFailure { error ->
-                                        // Handle error - could show a toast/dialog
+                                        // Handle error - show user-visible message
                                         println("DEBUG JOIN ERROR: Failed to join lobby: ${error.message}")
                                         error.printStackTrace()
+                                        joinErrorMessage = "Failed to join game: ${error.message}"
                                     }
                                 } catch (e: Exception) {
                                     println("DEBUG JOIN EXCEPTION: ${e.message}")
                                     e.printStackTrace()
+                                    joinErrorMessage = "Failed to join game: ${e.message}"
                                 }
                             }
                         },
@@ -414,6 +466,58 @@ fun WordslopApp() {
                         currentScreen = Screen.MainMenu
                     }
                 )
+            }
+        }
+    }
+    
+    // Show join error dialog if there's an error
+    joinErrorMessage?.let { errorMessage ->
+        LaunchedEffect(errorMessage) {
+            // Auto-dismiss after 3 seconds
+            kotlinx.coroutines.delay(3000L)
+            joinErrorMessage = null
+        }
+        
+        // Simple error display - could be enhanced with a proper dialog
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.Red.copy(alpha = 0.9f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Join Error",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        fontSize = 14.sp,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { joinErrorMessage = null },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White
+                        )
+                    ) {
+                        Text("OK", color = Color.Red)
+                    }
+                }
             }
         }
     }
