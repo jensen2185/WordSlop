@@ -105,6 +105,13 @@ fun MainMenuScreen(
                 textAlign = TextAlign.Center
             )
             
+            Text(
+                text = "Get your slop fix",
+                fontSize = 16.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
+            )
+            
             // Online users counter for testing coordination (only show when logged in)
             if (isLoggedIn) {
                 Text(
@@ -112,16 +119,9 @@ fun MainMenuScreen(
                     fontSize = 14.sp,
                     color = if (onlineUserCount > 1) Color(0xFF10B981) else Color.Gray,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
-            
-            Text(
-                text = "Get your slop fix",
-                fontSize = 16.sp,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
         }
         
         // Right side - Login and buttons

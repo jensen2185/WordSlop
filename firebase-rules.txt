@@ -1,0 +1,37 @@
+// Firebase Firestore Security Rules for Word Slop Game
+// Copy these rules to Firebase Console -> Firestore Database -> Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Game lobbies - read/write access for all authenticated users
+    match /game_lobbies/{lobbyId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Game ready states - read/write access for all authenticated users
+    match /game_ready_states/{lobbyId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Voting results - read/write access for all authenticated users  
+    match /voting_results/{lobbyId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Sentence emojis - read/write access for all authenticated users
+    match /sentence_emojis/{lobbyId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // User presence tracking - read/write access for all authenticated users
+    match /user_presence/{userId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Round signals - read/write access for all authenticated users
+    match /round_signals/{gameId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

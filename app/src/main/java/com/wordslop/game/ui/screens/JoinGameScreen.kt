@@ -148,7 +148,7 @@ private fun GameLobbyCard(
                         text = "In Progress",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF9800)
+                        color = Color(0xFF10B981)
                     )
                 }
             }
@@ -157,12 +157,11 @@ private fun GameLobbyCard(
             Button(
                 onClick = onJoin,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (lobby.gameStatus == GameStatus.IN_PROGRESS) 
-                        Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text(
-                    if (lobby.gameStatus == GameStatus.IN_PROGRESS) "Watch" else "Join"
+                    "Join"
                 )
             }
         }

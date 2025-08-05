@@ -253,6 +253,26 @@ fun WordGameScreen(
             
             if (timeLeft <= 0) {
                 gamePhase = GamePhase.VOTING
+                
+                // Host sends phase transition signal for spectators
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                    val isHost = gameLobby.players.find { it.userId == currentUser.userId }?.isHost == true
+                    if (isHost) {
+                        scope.launch {
+                            println("DEBUG HOST: Signaling VOTING phase transition")
+                            val phaseSignal = mapOf(
+                                "action" to "phase_change",
+                                "phase" to "VOTING",
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                            try {
+                                FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).set(phaseSignal).await()
+                            } catch (e: Exception) {
+                                println("DEBUG HOST: Failed to send phase signal: ${e.message}")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -281,7 +301,44 @@ fun WordGameScreen(
             // Move to results when time runs out
             if (votingTimeLeft <= 0) {
                 println("DEBUG: Voting timer expired, moving to results. Round: $currentRound")
+                
+                // Promote spectators during voting phase (additional opportunity)
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                    val isHost = gameLobby.players.find { it.userId == currentUser.userId }?.isHost == true
+                    if (isHost) {
+                        scope.launch {
+                            println("DEBUG HOST: Promoting spectators during voting phase")
+                            val promotionResult = lobbyRepository.promoteSpectatorsToPlayers(gameLobby.gameId)
+                            promotionResult.onSuccess {
+                                println("DEBUG HOST: Successfully promoted spectators during voting")
+                            }.onFailure { error ->
+                                println("DEBUG HOST: Failed to promote spectators during voting: ${error.message}")
+                            }
+                        }
+                    }
+                }
+                
                 gamePhase = GamePhase.RESULTS
+                
+                // Host sends phase transition signal for spectators
+                if (gameLobby != null && currentUser != null && lobbyRepository != null) {
+                    val isHost = gameLobby.players.find { it.userId == currentUser.userId }?.isHost == true
+                    if (isHost) {
+                        scope.launch {
+                            println("DEBUG HOST: Signaling RESULTS phase transition")
+                            val phaseSignal = mapOf(
+                                "action" to "phase_change",
+                                "phase" to "RESULTS",
+                                "timestamp" to System.currentTimeMillis()
+                            )
+                            try {
+                                FirebaseFirestore.getInstance().collection("round_signals").document(gameLobby.gameId).set(phaseSignal).await()
+                            } catch (e: Exception) {
+                                println("DEBUG HOST: Failed to send phase signal: ${e.message}")
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -504,6 +561,18 @@ fun WordGameScreen(
                                         println("DEBUG SIGNAL $playerType: Successfully ended game")
                                     } else {
                                         println("DEBUG SIGNAL $playerType: Skipping end_game - wrong phase ($gamePhase)")
+                                    }
+                                }
+                                "phase_change" -> {
+                                    val phase = snapshot.getString("phase")
+                                    if (phase != null && isSpectator) {
+                                        println("DEBUG SIGNAL $playerType SPECTATOR: Syncing to $phase phase")
+                                        when (phase) {
+                                            "VOTING" -> gamePhase = GamePhase.VOTING
+                                            "RESULTS" -> gamePhase = GamePhase.RESULTS
+                                            "PLAYING" -> gamePhase = GamePhase.PLAYING
+                                            "WINNER" -> gamePhase = GamePhase.WINNER
+                                        }
                                     }
                                 }
                                 else -> {
